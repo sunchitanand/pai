@@ -131,12 +131,6 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   const fileLlm: Partial<Config["llm"]> = fileConfig.llm ?? {};
   const fileTelegram: Partial<NonNullable<Config["telegram"]>> = fileConfig.telegram ?? {};
 
-  // Telegram config: env vars override config file
-  const telegramToken = env["PAI_TELEGRAM_TOKEN"] ?? fileTelegram.token;
-  const telegramEnabled = env["PAI_TELEGRAM_ENABLED"] === "true" ? true
-    : env["PAI_TELEGRAM_ENABLED"] === "false" ? false
-    : fileTelegram.enabled;
-
   // On Docker/PaaS: if config.json exists in the data dir (saved via Settings UI),
   // those values take priority over env vars (user explicitly chose them).
   // Otherwise (local dev / first boot): env vars > config file (~/.personal-ai) > defaults.
@@ -145,6 +139,14 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     ? loadConfigFile(dataDirPath)
     : null;
   const savedLlm: Partial<Config["llm"]> = dataDirConfig?.llm ?? {};
+  const savedTelegram: Partial<NonNullable<Config["telegram"]>> = dataDirConfig?.telegram ?? {};
+
+  // Telegram config: data dir config (Settings UI) > env vars > home config file
+  const telegramToken = savedTelegram.token ?? env["PAI_TELEGRAM_TOKEN"] ?? fileTelegram.token;
+  const telegramEnabled = savedTelegram.enabled !== undefined ? savedTelegram.enabled
+    : env["PAI_TELEGRAM_ENABLED"] === "true" ? true
+    : env["PAI_TELEGRAM_ENABLED"] === "false" ? false
+    : fileTelegram.enabled;
 
   const config: Config = {
     dataDir: resolveDataDir(env, fileConfig),
@@ -173,7 +175,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     config.telegram = {};
     if (telegramToken) config.telegram.token = telegramToken;
     if (telegramEnabled !== undefined) config.telegram.enabled = telegramEnabled;
-    if (fileTelegram.ownerUsername) config.telegram.ownerUsername = fileTelegram.ownerUsername;
+    const ownerUsername = savedTelegram.ownerUsername ?? fileTelegram.ownerUsername;
+    if (ownerUsername) config.telegram.ownerUsername = ownerUsername;
   }
 
   return config;
