@@ -7,10 +7,8 @@
  * Parse a PDF buffer and return extracted text content.
  */
 export async function parsePdf(buffer: Buffer): Promise<string> {
-  const { PDFParse } = await import("pdf-parse");
-  const parser = new PDFParse({ data: new Uint8Array(buffer) });
-  const result = await parser.getText();
-  await parser.destroy();
+  const { extractText } = await import("unpdf");
+  const result = await extractText(new Uint8Array(buffer), { mergePages: true });
   return result.text?.trim() ?? "";
 }
 
