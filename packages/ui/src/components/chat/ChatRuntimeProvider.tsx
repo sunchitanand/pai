@@ -2,10 +2,63 @@ import { type ReactNode, useMemo, useRef, useEffect } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { useAISDKRuntime } from "@assistant-ui/react-ai-sdk";
-import { AssistantRuntimeProvider } from "@assistant-ui/react";
+import {
+  AssistantRuntimeProvider,
+  CompositeAttachmentAdapter,
+  SimpleImageAttachmentAdapter,
+  SimpleTextAttachmentAdapter,
+} from "@assistant-ui/react";
+import type { AttachmentAdapter } from "@assistant-ui/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { threadKeys } from "@/hooks/use-threads";
+
+/**
+ * Attachment adapter for binary documents (PDF, Excel).
+ * Reads the file as a base64 data URL and sends it as a file part,
+ * which the server decodes and parses via document-parser.
+ */
+class BinaryDocumentAttachmentAdapter implements AttachmentAdapter {
+  accept =
+    "application/pdf,.pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,.xlsx,application/vnd.ms-excel,.xls";
+
+  async add(state: { file: File }) {
+    return {
+      id: state.file.name,
+      type: "document" as const,
+      name: state.file.name,
+      contentType: state.file.type,
+      file: state.file,
+      status: { type: "requires-action" as const, reason: "composer-send" as const },
+    };
+  }
+
+  async send(attachment: { id: string; type: string; file: File; name: string; contentType?: string }) {
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = (error) => reject(error);
+      reader.readAsDataURL(attachment.file);
+    });
+
+    return {
+      ...attachment,
+      status: { type: "complete" as const },
+      content: [
+        {
+          type: "file" as const,
+          data: dataUrl,
+          mimeType: attachment.contentType || attachment.file.type,
+          filename: attachment.name,
+        },
+      ],
+    };
+  }
+
+  async remove() {
+    // noop
+  }
+}
 
 interface ChatRuntimeProviderProps {
   activeThreadId: string | null;
@@ -121,7 +174,19 @@ export function ChatRuntimeProvider({
     },
   });
 
-  const runtime = useAISDKRuntime(chatHelpers);
+  const attachmentAdapter = useMemo(
+    () =>
+      new CompositeAttachmentAdapter([
+        new SimpleImageAttachmentAdapter(),
+        new SimpleTextAttachmentAdapter(),
+        new BinaryDocumentAttachmentAdapter(),
+      ]),
+    [],
+  );
+
+  const runtime = useAISDKRuntime(chatHelpers, {
+    adapters: { attachments: attachmentAdapter },
+  });
 
   // Expose handle for external components (thread switching, memory sidebar, etc.)
   const handleRef = useRef<ChatRuntimeHandle | null>(null);

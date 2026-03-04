@@ -60,10 +60,26 @@ ${report}`, "text/plain;charset=utf-8", `${nameBase}.txt`);
 ${report}`, "text/markdown;charset=utf-8", `${nameBase}.md`);
 }
 
+function markdownToHtml(md: string): string {
+  return md
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/^### (.+)$/gm, "<h3>$1</h3>")
+    .replace(/^## (.+)$/gm, "<h2>$1</h2>")
+    .replace(/^# (.+)$/gm, "<h1>$1</h1>")
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/^- (.+)$/gm, "<li>$1</li>")
+    .replace(/((?:<li>.*<\/li>\n?)+)/g, "<ul>$1</ul>")
+    .replace(/^---$/gm, "<hr>")
+    .replace(/\n{2,}/g, "<br><br>")
+    .replace(/\n/g, "\n");
+}
+
 function printResearchAsPdf(sections: { goal?: string; report?: string }): void {
-  const w = window.open("", "_blank", "noopener,noreferrer,width=900,height=700");
+  const w = window.open("", "_blank", "width=900,height=700");
   if (!w) return;
-  w.document.write(`<html><head><title>${sections.goal ?? "Research Report"}</title></head><body><h1>${sections.goal ?? "Research Report"}</h1><pre style="white-space:pre-wrap;font-family:system-ui">${(sections.report ?? "").replace(/</g, "&lt;")}</pre></body></html>`);
+  const title = (sections.goal ?? "Research Report").replace(/</g, "&lt;");
+  const body = markdownToHtml(sections.report ?? "");
+  w.document.write(`<html><head><title>${title}</title><style>body{font-family:system-ui,sans-serif;max-width:800px;margin:40px auto;padding:0 20px;line-height:1.6;color:#1a1a1a}h1{font-size:1.6em;border-bottom:2px solid #e5e5e5;padding-bottom:8px}h2{font-size:1.3em;margin-top:1.5em}h3{font-size:1.1em;margin-top:1.2em}ul{padding-left:1.5em}li{margin:4px 0}hr{border:none;border-top:1px solid #e5e5e5;margin:1.5em 0}strong{font-weight:600}@media print{body{margin:0;padding:0}}</style></head><body>${body}</body></html>`);
   w.document.close();
   w.focus();
   w.print();

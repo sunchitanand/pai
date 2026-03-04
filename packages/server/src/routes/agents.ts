@@ -177,14 +177,14 @@ export function registerAgentRoutes(app: FastifyInstance, { ctx, agents }: Serve
     let message: string;
     let agentName: string | undefined;
     let sessionId: string | undefined;
-    let fileParts: Array<{ type: string; data?: string; mediaType?: string; mimeType?: string; filename?: string; name?: string }> = [];
+    let fileParts: Array<{ type: string; data?: string; url?: string; mediaType?: string; mimeType?: string; filename?: string; name?: string }> = [];
 
     if (body?.messages && Array.isArray(body.messages)) {
       // AI SDK DefaultChatTransport format: { id, messages: [{ role, parts: [{ type: "text", text }] }], trigger, sessionId, agent }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const lastMsg = (body.messages as Array<{ role: string; parts?: Array<Record<string, any>> }>).at(-1);
-      const textPart = lastMsg?.parts?.find((p) => p.type === "text");
-      message = textPart?.text ?? "";
+      const textParts = lastMsg?.parts?.filter((p) => p.type === "text") ?? [];
+      message = textParts.map((p) => p.text).filter(Boolean).join("\n\n");
       fileParts = (lastMsg?.parts?.filter((p) => p.type === "file") ?? []) as typeof fileParts;
       agentName = body.agent as string | undefined;
       sessionId = (body.sessionId as string | undefined) ?? (body.id as string | undefined);
@@ -192,8 +192,8 @@ export function registerAgentRoutes(app: FastifyInstance, { ctx, agents }: Serve
       // Single message with parts: { id, message: { parts: [{ type: "text", text }] }, agent }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const parts = ((body.message as Record<string, unknown>).parts as Array<Record<string, any>>) ?? [];
-      const textPart = parts.find((p) => p.type === "text");
-      message = textPart?.text ?? "";
+      const textParts = parts.filter((p) => p.type === "text");
+      message = textParts.map((p) => p.text).filter(Boolean).join("\n\n");
       fileParts = (parts.filter((p) => p.type === "file") ?? []) as typeof fileParts;
       agentName = body.agent as string | undefined;
       sessionId = body.id as string | undefined;
@@ -209,7 +209,7 @@ export function registerAgentRoutes(app: FastifyInstance, { ctx, agents }: Serve
     const uploadedDocNames: string[] = [];
     for (const fp of fileParts) {
       try {
-        const rawData = fp.data ?? "";
+        const rawData = fp.data ?? fp.url ?? "";
         const mime = fp.mediaType ?? fp.mimeType ?? "text/plain";
         const fileName = fp.filename ?? fp.name ?? `document-${Date.now()}.txt`;
 
