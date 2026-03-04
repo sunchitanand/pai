@@ -287,7 +287,7 @@ Your final response MUST be valid JSON wrapped in a markdown code fence:
 - Sort options by score descending
 
 ## Render Spec
-After the data JSON block, include a SECOND code fence with a json-render UI spec that describes how to render these results visually:
+After the data JSON block, include a SECOND code fence with a json-render UI spec that describes how to render these results visually. IMPORTANT: Fill in ALL actual values — do NOT use placeholders like "[price]".
 
 \`\`\`jsonrender
 {
@@ -295,7 +295,7 @@ After the data JSON block, include a SECOND code fence with a json-render UI spe
   "elements": {
     "flight-results": {
       "type": "Section",
-      "props": { "title": "✈ Flight Results", "subtitle": "[origin] → [destination] · [dates]" },
+      "props": { "title": "Flight Results", "subtitle": "SFO to NRT · Mar 15-22, 2026" },
       "children": ["metrics", "options-table", "sources"]
     },
     "metrics": {
@@ -305,33 +305,43 @@ After the data JSON block, include a SECOND code fence with a json-render UI spe
     },
     "cheapest": {
       "type": "MetricCard",
-      "props": { "label": "Cheapest", "value": "$[price]", "detail": "[airline] · [stops]" }
+      "props": { "label": "Cheapest", "value": "$987", "description": "ANA · Nonstop" }
     },
     "fastest": {
       "type": "MetricCard",
-      "props": { "label": "Fastest", "value": "[duration]", "detail": "[airline] · $[price]" }
+      "props": { "label": "Fastest", "value": "9h 45m", "description": "JAL · $1,150" }
     },
     "best-value": {
       "type": "MetricCard",
-      "props": { "label": "Best Value", "value": "[airline]", "detail": "Score [score]/100" }
+      "props": { "label": "Best Value", "value": "ANA", "description": "Score 94/100" }
     },
     "options-table": {
       "type": "DataTable",
       "props": {
-        "columns": ["Airline", "Flight", "Depart", "Duration", "Stops", "Price", "Score"],
-        "dataPath": "options",
-        "rowFields": ["airline", "flightNo", "departure", "duration", "stops", "price", "score"]
+        "columns": [
+          { "key": "airline", "label": "Airline" },
+          { "key": "flight", "label": "Flight" },
+          { "key": "depart", "label": "Depart" },
+          { "key": "duration", "label": "Duration" },
+          { "key": "stops", "label": "Stops" },
+          { "key": "price", "label": "Price", "align": "right" },
+          { "key": "score", "label": "Score", "align": "right" }
+        ],
+        "rows": [
+          { "airline": "ANA", "flight": "NH7", "depart": "11:25", "duration": "11h 0m", "stops": "Nonstop", "price": "$987", "score": "94" }
+        ],
+        "highlightFirst": true
       }
     },
     "sources": {
       "type": "SourceList",
-      "props": { "dataPath": "sources" }
+      "props": { "sources": [{ "title": "Google Flights", "url": "https://google.com/flights" }] }
     }
   }
 }
 \`\`\`
 
-Fill in the actual values from your research. Use these available components: Section, Grid, MetricCard, DataTable, Badge, FlightOption, SourceList, BulletList, Text.
+Fill in the actual values from your research. DataTable rows MUST be objects with keys matching column "key" fields. Available components: Section, Grid, MetricCard, DataTable, Badge, FlightOption, SourceList, BulletList, Text, Markdown.
 
 ## Budget
 You have limited searches and page reads. Be efficient — focus on the most useful flight aggregator sites.`;
@@ -408,7 +418,7 @@ Your final response MUST be valid JSON wrapped in a markdown code fence:
 - 81-100: High confidence, strong supporting data
 
 ## Render Spec
-After the data JSON block, include a SECOND code fence with a json-render UI spec that describes how to render this analysis visually:
+After the data JSON block, include a SECOND code fence with a json-render UI spec that describes how to render this analysis visually. IMPORTANT: Fill in ALL actual values — do NOT use placeholders like "[price]".
 
 \`\`\`jsonrender
 {
@@ -416,7 +426,7 @@ After the data JSON block, include a SECOND code fence with a json-render UI spe
   "elements": {
     "stock-analysis": {
       "type": "Section",
-      "props": { "title": "[ticker] — [company]", "subtitle": "[thesis]" },
+      "props": { "title": "NVDA — NVIDIA Corporation", "subtitle": "Strong AI/data center tailwinds support continued growth" },
       "children": ["verdict-row", "key-metrics", "risks-catalysts", "sources"]
     },
     "verdict-row": {
@@ -426,15 +436,15 @@ After the data JSON block, include a SECOND code fence with a json-render UI spe
     },
     "verdict-badge": {
       "type": "Badge",
-      "props": { "label": "[verdict]", "variant": "verdict" }
+      "props": { "text": "Buy", "variant": "success" }
     },
     "confidence-metric": {
       "type": "MetricCard",
-      "props": { "label": "Confidence", "value": "[confidence]/100" }
+      "props": { "label": "Confidence", "value": "72/100" }
     },
     "price-metric": {
       "type": "MetricCard",
-      "props": { "label": "Price", "value": "$[price]", "detail": "P/E [pe] · MCap [marketCap]" }
+      "props": { "label": "Price", "value": "$131.42", "description": "P/E 58.3 · MCap $3.2T" }
     },
     "key-metrics": {
       "type": "Grid",
@@ -443,19 +453,19 @@ After the data JSON block, include a SECOND code fence with a json-render UI spe
     },
     "metric-52w-high": {
       "type": "MetricCard",
-      "props": { "label": "52W High", "value": "$[high52w]" }
+      "props": { "label": "52W High", "value": "$153.13", "trend": "up" }
     },
     "metric-52w-low": {
       "type": "MetricCard",
-      "props": { "label": "52W Low", "value": "$[low52w]" }
+      "props": { "label": "52W Low", "value": "$75.61", "trend": "down" }
     },
     "metric-ytd": {
       "type": "MetricCard",
-      "props": { "label": "YTD Return", "value": "[ytdReturn]" }
+      "props": { "label": "YTD Return", "value": "+12.4%", "trend": "up" }
     },
     "metric-rev-growth": {
       "type": "MetricCard",
-      "props": { "label": "Rev Growth", "value": "[revGrowth]" }
+      "props": { "label": "Rev Growth", "value": "+94% YoY", "trend": "up" }
     },
     "risks-catalysts": {
       "type": "Grid",
@@ -464,21 +474,21 @@ After the data JSON block, include a SECOND code fence with a json-render UI spe
     },
     "risks": {
       "type": "BulletList",
-      "props": { "title": "⚠ Risks", "dataPath": "risks" }
+      "props": { "items": ["Valuation premium (P/E > 50x)", "Export restrictions to China"], "icon": "warning", "variant": "danger" }
     },
     "catalysts": {
       "type": "BulletList",
-      "props": { "title": "🚀 Catalysts", "dataPath": "catalysts" }
+      "props": { "items": ["AI infrastructure spending accelerating", "New Blackwell architecture ramping"], "icon": "arrow-up", "variant": "success" }
     },
     "sources": {
       "type": "SourceList",
-      "props": { "dataPath": "sources" }
+      "props": { "sources": [{"title": "Yahoo Finance", "url": "https://finance.yahoo.com/quote/NVDA"}] }
     }
   }
 }
 \`\`\`
 
-Fill in the actual values from your research. Use these available components: Section, Grid, MetricCard, DataTable, Badge, FlightOption, SourceList, BulletList, Text.
+Fill in the actual values from your research. For DataTable, columns MUST be objects with "key" and "label" fields, and rows MUST be objects with keys matching column "key" values. Badge variant must be one of: success, warning, danger, info, neutral. Available components: Section, Grid, MetricCard, DataTable, Badge, SourceList, BulletList, Text, Markdown.
 
 ## Budget
 You have limited searches and page reads. Prioritize authoritative financial sources.`;

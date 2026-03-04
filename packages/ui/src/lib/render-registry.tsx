@@ -101,41 +101,47 @@ export const { registry, handlers, executeAction } = defineRegistry(resultCatalo
       );
     },
 
-    DataTable: ({ props }) => (
-      <div className="overflow-x-auto rounded-lg border border-zinc-700/50">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-zinc-800/80 border-b border-zinc-700/50">
-              {props.columns.map((col) => (
-                <th
-                  key={col.key}
-                  className={`px-3 py-2 text-xs font-medium text-zinc-400 uppercase ${
-                    col.align === "right"
-                      ? "text-right"
-                      : col.align === "center"
-                        ? "text-center"
-                        : "text-left"
-                  }`}
-                >
-                  {col.label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {props.rows.map((row, i) => (
-              <tr
-                key={i}
-                className={`border-b border-zinc-700/30 ${
-                  props.highlightFirst && i === 0
-                    ? "bg-green-500/5 border-l-2 border-l-green-500"
-                    : "hover:bg-zinc-800/30"
-                }`}
-              >
-                {props.columns.map((col) => (
-                  <td
+    DataTable: ({ props }) => {
+      // Normalize columns: LLMs sometimes send strings instead of {key,label} objects
+      const columns = (props.columns ?? []).map((col, idx) => {
+        if (typeof col === "string") return { key: col, label: col, align: null };
+        // Handle missing key/label gracefully
+        const key = col.key || col.label || `col${idx}`;
+        const label = col.label || col.key || `Column ${idx + 1}`;
+        return { ...col, key, label };
+      });
+
+      // Normalize rows: if row keys don't match column keys, try positional mapping
+      const rows = (props.rows ?? []).map((row) => {
+        if (!row || typeof row !== "object") return {} as Record<string, unknown>;
+        // Check if any column key matches a row key
+        const hasMatch = columns.some((col) => row[col.key] != null);
+        if (hasMatch) return row;
+        // Try case-insensitive match
+        const rowKeys = Object.keys(row);
+        const mapped: Record<string, unknown> = {};
+        for (const col of columns) {
+          const match = rowKeys.find((k) => k.toLowerCase() === col.key.toLowerCase());
+          if (match) mapped[col.key] = row[match];
+        }
+        if (Object.keys(mapped).length > 0) return mapped;
+        // Last resort: positional mapping (row values in order of columns)
+        const values = Object.values(row);
+        for (let i = 0; i < columns.length && i < values.length; i++) {
+          mapped[columns[i].key] = values[i];
+        }
+        return Object.keys(mapped).length > 0 ? mapped : row;
+      });
+
+      return (
+        <div className="overflow-x-auto rounded-lg border border-zinc-700/50">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-zinc-800/80 border-b border-zinc-700/50">
+                {columns.map((col) => (
+                  <th
                     key={col.key}
-                    className={`px-3 py-2 text-zinc-300 ${
+                    className={`px-3 py-2 text-xs font-medium text-zinc-400 uppercase ${
                       col.align === "right"
                         ? "text-right"
                         : col.align === "center"
@@ -143,15 +149,42 @@ export const { registry, handlers, executeAction } = defineRegistry(resultCatalo
                           : "text-left"
                     }`}
                   >
-                    {row[col.key] ?? "\u2014"}
-                  </td>
+                    {col.label}
+                  </th>
                 ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    ),
+            </thead>
+            <tbody>
+              {rows.map((row, i) => (
+                <tr
+                  key={i}
+                  className={`border-b border-zinc-700/30 ${
+                    props.highlightFirst && i === 0
+                      ? "bg-green-500/5 border-l-2 border-l-green-500"
+                      : "hover:bg-zinc-800/30"
+                  }`}
+                >
+                  {columns.map((col) => (
+                    <td
+                      key={col.key}
+                      className={`px-3 py-2 text-zinc-300 ${
+                        col.align === "right"
+                          ? "text-right"
+                          : col.align === "center"
+                            ? "text-center"
+                            : "text-left"
+                      }`}
+                    >
+                      {row[col.key] != null ? String(row[col.key]) : "\u2014"}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    },
 
     Badge: ({ props }) => {
       const variants: Record<string, string> = {

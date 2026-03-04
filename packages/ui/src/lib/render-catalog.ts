@@ -53,15 +53,18 @@ export const resultCatalog = defineCatalog(schema, {
     },
     DataTable: {
       props: z.object({
-        columns: z.array(z.object({
-          key: z.string(),
-          label: z.string(),
-          align: z.enum(["left", "center", "right"]).nullable(),
-        })),
-        rows: z.array(z.record(z.string(), z.string())),
-        highlightFirst: z.boolean().nullable(),
+        columns: z.array(z.union([
+          z.object({
+            key: z.string().optional(),
+            label: z.string().optional(),
+            align: z.enum(["left", "center", "right"]).nullable().optional(),
+          }),
+          z.string(),
+        ])),
+        rows: z.array(z.record(z.string(), z.unknown())),
+        highlightFirst: z.boolean().nullable().optional(),
       }),
-      description: "Table for structured data. Use for flight options, stock comparisons, search results.",
+      description: "Table for structured data. columns: array of {key, label, align} objects. rows: array of objects where keys MUST match column key values. Example: columns=[{key:'ticker',label:'Ticker'}], rows=[{ticker:'AAPL'}].",
     },
     Badge: {
       props: z.object({
