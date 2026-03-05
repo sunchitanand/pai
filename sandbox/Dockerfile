@@ -1,6 +1,10 @@
-# Stage 1: Build Pinchtab from source
+# Stage 1: Build Pinchtab from source with --no-sandbox patch
 FROM golang:1.25 AS pinchtab-builder
-RUN go install github.com/pinchtab/pinchtab/cmd/pinchtab@latest
+WORKDIR /src
+RUN git clone --depth 1 https://github.com/pinchtab/pinchtab.git .
+# Add chromedp.NoSandbox to Chrome launch options (required in containers that drop capabilities)
+RUN sed -i '/chromedp.NoFirstRun,/a \\t\tchromedp.NoSandbox,' cmd/pinchtab/main.go
+RUN cd cmd/pinchtab && go build -o /go/bin/pinchtab .
 
 # Stage 2: Runtime image with code executor + browser automation
 FROM python:3.12-slim
@@ -42,6 +46,7 @@ COPY --from=pinchtab-builder /go/bin/pinchtab /usr/local/bin/pinchtab
 # Set Chromium path for Pinchtab and bind to all interfaces
 ENV CHROME_PATH=/usr/bin/chromium
 ENV BRIDGE_BIND=0.0.0.0
+ENV BRIDGE_HEADLESS=true
 
 # Create non-root user for execution
 RUN useradd -m -s /bin/bash -u 1000 sandbox
