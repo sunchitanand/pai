@@ -84,14 +84,25 @@ jobs:
           fetch-depth: 0
           fetch-tags: true
 
-      - name: Resolve version tag
+      - name: Compute image tags
         id: resolve
         run: |
+          IMAGE="${{ env.REGISTRY_GHCR }}/${{ github.repository }}${{ matrix.image_suffix }}"
           if [ "${{ github.ref_type }}" = "tag" ]; then
-            echo "version=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+            VERSION="${{ github.ref_name }}"
           else
-            echo "version=${{ needs.auto-tag.outputs.new_tag }}" >> "$GITHUB_OUTPUT"
+            VERSION="${{ needs.auto-tag.outputs.new_tag }}"
           fi
+          # Strip leading 'v' for Docker tags
+          VERSION="${VERSION#v}"
+          # Extract major.minor for rolling tag (e.g. 0.3)
+          MINOR=$(echo "$VERSION" | grep -oE '^[0-9]+\.[0-9]+')
+          # Build tag list
+          TAGS="${IMAGE}:${VERSION}"
+          TAGS="${TAGS},${IMAGE}:${MINOR}"
+          TAGS="${TAGS},${IMAGE}:latest"
+          echo "tags=$TAGS" >> "$GITHUB_OUTPUT"
+          echo "Tags: $TAGS"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -112,24 +123,12 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: |
-            ${{ env.REGISTRY_GHCR }}/${{ github.repository }}${{ matrix.image_suffix }}
-          tags: |
-            type=semver,pattern={{version}},value=${{ steps.resolve.outputs.version }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ steps.resolve.outputs.version }}
-            type=raw,value=latest
-
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.resolve.outputs.tags }}
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
