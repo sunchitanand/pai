@@ -418,7 +418,7 @@ export function registerAgentRoutes(app: FastifyInstance, { ctx, agents }: Serve
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               tools: tools as any,
               toolChoice: tools ? "auto" : undefined,
-              stopWhen: tools ? stepCountIs(8) : undefined,
+              stopWhen: tools ? stepCountIs(15) : undefined,
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               providerOptions: getProviderOptions(ctx.config.llm.provider, budget.contextWindow) as any,
               onError: ({ error }) => {

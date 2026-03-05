@@ -182,7 +182,7 @@ export async function runAgentChat(opts: ChatPipelineOptions): Promise<ChatPipel
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     tools: tools as any,
     toolChoice: tools ? "auto" : undefined,
-    stopWhen: tools ? stepCountIs(8) : undefined,
+    stopWhen: tools ? stepCountIs(15) : undefined,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     providerOptions: getProviderOptions(ctx.config.llm.provider, budget.contextWindow) as any,
     onStepFinish: ({ toolCalls: stepTools, text: stepText }) => {
@@ -203,6 +203,8 @@ export async function runAgentChat(opts: ChatPipelineOptions): Promise<ChatPipel
   text = text.replace(/\[?\s*\{\s*"name"\s*:\s*"[^"]+"\s*,\s*"arguments"\s*:\s*\{[^}]*\}\s*\}\s*\]?/g, "").trim();
   // Strip leftover tool-call-like prefixes/suffixes
   text = text.replace(/^[\s,]+|[\s,]+$/g, "").trim();
+  // Strip root-relative artifact links (e.g. [report](/api/artifacts/...)) — files are sent as Telegram documents
+  text = text.replace(/\[([^\]]+)\]\(\/api\/artifacts\/[^)]+\)/g, "$1 (attached below)").trim();
 
   // Build persisted messages — include tool call summaries so model retains context
   const toPersist: ThreadMessageInput[] = [
@@ -266,7 +268,7 @@ export async function runAgentChat(opts: ChatPipelineOptions): Promise<ChatPipel
     });
   }
 
-  // Extract image artifacts from browse_screenshot tool results
+  // Extract artifacts from all tool results (screenshots, reports, sandbox charts)
   const artifacts: Array<{ id: string; name: string }> = [];
   if (result.steps) {
     for (const step of result.steps) {
@@ -276,10 +278,16 @@ export async function runAgentChat(opts: ChatPipelineOptions): Promise<ChatPipel
           const tc = step.toolCalls[i] as any;
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const tr = step.toolResults[i] as any;
-          if (tc?.toolName === "browse_screenshot" && tr) {
-            const res = tr.output ?? tr.result ?? tr;
-            if (res?.ok && res.artifactId) {
-              artifacts.push({ id: res.artifactId, name: "screenshot.png" });
+          if (!tc || !tr) continue;
+          const res = tr.output ?? tr.result ?? tr;
+
+          if (tc.toolName === "browse_screenshot" && res?.ok && res.artifactId) {
+            artifacts.push({ id: res.artifactId, name: "screenshot.png" });
+          } else if (tc.toolName === "generate_report" && res?.ok && res.artifactId) {
+            artifacts.push({ id: res.artifactId, name: res.fileName ?? "report.md" });
+          } else if (tc.toolName === "run_code" && Array.isArray(res?.artifacts)) {
+            for (const a of res.artifacts) {
+              if (a.id) artifacts.push({ id: a.id, name: a.name ?? "output" });
             }
           }
         }

@@ -325,12 +325,19 @@ export function createBot(token: string, ctx: PluginContext, agentPlugin: AgentP
         }
       }
 
-      // Send screenshot artifacts as downloadable documents (full quality)
+      // Send artifacts as downloadable documents (screenshots, reports, charts)
       if (result.artifacts?.length) {
         for (const art of result.artifacts) {
           try {
             const artifact = getArtifact(ctx.storage, art.id);
-            if (artifact && artifact.mimeType.startsWith("image/")) {
+            if (!artifact) continue;
+            if (artifact.mimeType.startsWith("image/")) {
+              // Send images as photos with document fallback for large files
+              await bot.api.sendDocument(chatId, new InputFile(artifact.data, art.name), {
+                caption: art.name,
+              });
+            } else {
+              // Send reports, data files, etc. as documents
               await bot.api.sendDocument(chatId, new InputFile(artifact.data, art.name), {
                 caption: art.name,
               });
