@@ -14,10 +14,12 @@ chromium \
   --disable-software-rasterizer \
   --disable-extensions \
   --disable-background-networking \
+  --disable-features=Vulkan \
   --no-first-run \
   --remote-debugging-address=0.0.0.0 \
   --remote-debugging-port=9222 \
-  about:blank &
+  about:blank \
+  2>&1 | grep -v -E '(dbus|UPower|Vulkan|vkCreate|gcm|PHONE_REGISTRATION|DEPRECATED_ENDPOINT)' &
 CHROME_PID=$!
 
 # Wait for Chrome DevTools Protocol to be ready (up to 15s)
