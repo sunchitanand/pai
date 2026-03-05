@@ -104,6 +104,23 @@ export async function browserNavigate(
     throw new Error(`Cannot reach browser at ${baseUrl}/navigate — ${msg}`);
   }
 
+  // If 404 "no tabs open", retry with newTab: true to auto-create a tab
+  if (res.status === 404 && !body.newTab) {
+    logger?.debug("Browser navigate: no tabs open, retrying with newTab=true");
+    const retryBody = { ...body, newTab: true };
+    try {
+      res = await fetch(`${baseUrl}/navigate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(retryBody),
+        signal: AbortSignal.timeout(30_000),
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "connection failed";
+      throw new Error(`Cannot reach browser at ${baseUrl}/navigate — ${msg}`);
+    }
+  }
+
   if (!res.ok) {
     const text = await res.text().catch(() => "unknown error");
     throw new Error(`Browser navigate failed (${res.status}): ${text}`);

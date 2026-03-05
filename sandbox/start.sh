@@ -29,6 +29,12 @@ for i in $(seq 1 30); do
   sleep 0.5
 done
 
+# Ensure at least one tab exists (headless Chrome may start with zero targets)
+if ! curl -sf http://127.0.0.1:9222/json/list | grep -q '"id"'; then
+  curl -sf http://127.0.0.1:9222/json/new?about:blank > /dev/null 2>&1 || true
+  sleep 0.5
+fi
+
 # Start Pinchtab connected to the pre-launched Chrome instance
 CDP_URL="ws://127.0.0.1:9222" pinchtab &
 PINCHTAB_PID=$!
