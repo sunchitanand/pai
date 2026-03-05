@@ -53,8 +53,8 @@ ENV PINCHTAB_AUTO_LAUNCH=1
 RUN useradd -m -s /bin/bash -u 1000 sandbox
 
 WORKDIR /app
-COPY entrypoint.py /app/entrypoint.py
-COPY start.sh /app/start.sh
+COPY sandbox/entrypoint.py /app/entrypoint.py
+COPY sandbox/start.sh /app/start.sh
 RUN chmod +x /app/start.sh
 
 # Entrypoint runs as root to bind port, but code executes as sandbox user
