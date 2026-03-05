@@ -7,6 +7,8 @@ vi.mock("@personal-ai/core", () => ({
   remember: vi.fn(),
   listBeliefs: vi.fn().mockReturnValue([]),
   resolveSandboxUrl: vi.fn().mockReturnValue(null),
+  resolveBrowserUrl: vi.fn().mockReturnValue(null),
+  createBrowserTools: vi.fn().mockReturnValue({}),
 }));
 
 vi.mock("@personal-ai/plugin-tasks", () => ({

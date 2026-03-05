@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Filesystem-backed artifacts** — Artifacts (screenshots, charts, reports) are now stored on disk at `{dataDir}/artifacts/` instead of as SQLite BLOBs. Keeps the database lean and makes cleanup trivial. Migration v2 runs automatically on server startup — no manual setup required.
+- **Artifact auto-cleanup** — Background worker deletes artifacts older than 7 days (runs every 24 hours). Also cleans up orphan files on disk that have no matching DB records.
+
 ### Added
 
 - **Chat document upload** — Attach text documents (`.txt`, `.md`, `.csv`, `.json`, `.xml`, `.html`, code files) directly in the chat composer via drag-and-drop or the attachment button. Documents are automatically stored in the knowledge base and included in the LLM context for analysis, Q&A, and comparison.
@@ -74,7 +79,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Flight results UI card** (`ToolFlightResults`) — Rich card in Inbox detail view showing ranked flight options with airline, times, duration, baggage, refund policy, score, and booking CTAs. Collapsible with route header. Markdown report rendered below.
 - **Stock report UI card** (`ToolStockReport`) — Rich card with verdict badge (Strong Buy/Buy/Hold/Sell), confidence %, key metrics grid, catalysts, risks, sources with external links, and chart rendering.
 - **Sandbox code execution** — Docker sidecar (`sandbox/`) running Python 3.12 + Node.js 20 for isolated code execution. HTTP API on port 8888. Includes matplotlib, pandas, numpy, plotly, yfinance. `run_code` tool in the assistant (gated by `PAI_SANDBOX_URL`). Output files saved as artifacts.
-- **Artifact storage** — SQLite-backed binary blob storage for charts and output files. `GET /api/artifacts/:id` serves artifacts with correct MIME types. `GET /api/jobs/:jobId/artifacts` lists artifacts per job.
+- **Artifact storage** — Filesystem-backed artifact storage at `{dataDir}/artifacts/`. Metadata in SQLite, binary data on disk. Auto-cleanup of artifacts older than 7 days. `GET /api/artifacts/:id` serves artifacts with correct MIME types. `GET /api/jobs/:jobId/artifacts` lists artifacts per job.
 - **Stock chart generation** — When sandbox is available, stock research automatically generates dark-themed matplotlib price+volume charts, stored as artifacts and referenced in the report.
 - **Inbox rerun** — `POST /api/inbox/:id/rerun` re-runs a research report with the same goal and domain type. "Rerun" button in Inbox detail view.
 - **Jobs domain badges** — Jobs page shows "flight" or "stock" badges next to research jobs.

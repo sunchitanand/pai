@@ -196,7 +196,7 @@ Today is ${dt.date}. When searching for recent information, news, or development
 1. First, check existing knowledge using knowledge_search to see what's already known about this topic
 2. Plan your research approach — focus on what's NEW or CHANGED since previous reports
 3. Execute searches using web_search — include the year "${dt.year}" in queries about recent topics
-4. Read important pages using read_page to get detailed content
+4. Read important pages using read_page to get detailed content. If read_page returns empty or incomplete content (common with JavaScript-rendered SPAs), use browse_navigate + browse_text as a fallback
 5. Synthesize findings into a structured report with NEW information only
 
 ## Building on Previous Research

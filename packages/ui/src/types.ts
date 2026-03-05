@@ -113,6 +113,7 @@ export interface ConfigInfo {
   debugResearch?: boolean;
   sandboxUrl?: string;
   searchUrl?: string;
+  browserUrl?: string;
   envOverrides?: string[];
 }
 

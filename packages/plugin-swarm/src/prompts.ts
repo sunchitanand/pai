@@ -11,9 +11,11 @@ export function getPlannerPrompt(resultType?: string, timezone?: string): string
 Today is ${dt.date} (${dt.year}).
 
 ## Available Roles
-- **researcher** — Searches the web, reads pages, gathers information. Tools: web_search, read_page, knowledge_search.
+- **researcher** — Searches the web, reads pages, gathers information. Tools: web_search, read_page, knowledge_search, browse_navigate, browse_text, browse_snapshot, browse_action.
 - **coder** — Writes and executes code for analysis, calculations, or data processing. Tools: run_code, knowledge_search.
-- **analyst** — Analyzes data and produces insights. Tools: web_search, read_page, knowledge_search.
+- **analyst** — Analyzes data and produces insights. Tools: web_search, read_page, knowledge_search, browse_navigate, browse_text.
+
+Note: browse_* tools are for JavaScript-rendered pages (SPAs) where read_page returns empty content. Use read_page first; only fall back to browse_* when needed.
 ${domainGuidance}
 ## Output Format
 You MUST respond with valid JSON wrapped in a code fence:

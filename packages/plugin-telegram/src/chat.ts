@@ -39,6 +39,8 @@ export interface ChatPipelineOptions {
 export interface ChatPipelineResult {
   text: string;
   toolCalls: Array<{ name: string }>;
+  /** Image artifacts produced during tool calls (e.g. browse_screenshot) */
+  artifacts: Array<{ id: string; name: string }>;
 }
 
 function autoTitle(message: string): string {
@@ -264,7 +266,28 @@ export async function runAgentChat(opts: ChatPipelineOptions): Promise<ChatPipel
     });
   }
 
-  return { text, toolCalls };
+  // Extract image artifacts from browse_screenshot tool results
+  const artifacts: Array<{ id: string; name: string }> = [];
+  if (result.steps) {
+    for (const step of result.steps) {
+      if (step.toolCalls && step.toolResults) {
+        for (let i = 0; i < step.toolCalls.length; i++) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const tc = step.toolCalls[i] as any;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const tr = step.toolResults[i] as any;
+          if (tc?.toolName === "browse_screenshot" && tr) {
+            const res = tr.result ?? tr;
+            if (res?.ok && res.artifactId) {
+              artifacts.push({ id: res.artifactId, name: "screenshot.png" });
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return { text, toolCalls, artifacts };
   }); // end withThreadLock
 }
 

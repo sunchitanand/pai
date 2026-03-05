@@ -23,6 +23,7 @@ import { ToolResearchStart } from "../tools/ToolResearchStart";
 import { ToolSwarmStart } from "../tools/ToolSwarmStart";
 import { ToolScheduleAction } from "../tools/ToolScheduleAction";
 import { ToolDocumentReport } from "../tools/ToolDocumentReport";
+import { ToolBrowseAction } from "../tools/ToolBrowseAction";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -276,6 +277,41 @@ export const AgentCuratorToolUI = makeAssistantToolUI({
   },
 });
 
+export const BrowseNavigateToolUI = makeAssistantToolUI({
+  toolName: "browse_navigate",
+  render: ({ args, result, status }) => (
+    <ToolBrowseAction state={mapStatus(status)} toolName="browse_navigate" input={args} output={result as any} />
+  ),
+});
+
+export const BrowseSnapshotToolUI = makeAssistantToolUI({
+  toolName: "browse_snapshot",
+  render: ({ args, result, status }) => (
+    <ToolBrowseAction state={mapStatus(status)} toolName="browse_snapshot" input={args} output={result as any} />
+  ),
+});
+
+export const BrowseActionToolUI = makeAssistantToolUI({
+  toolName: "browse_action",
+  render: ({ args, result, status }) => (
+    <ToolBrowseAction state={mapStatus(status)} toolName="browse_action" input={args} output={result as any} />
+  ),
+});
+
+export const BrowseTextToolUI = makeAssistantToolUI({
+  toolName: "browse_text",
+  render: ({ args, result, status }) => (
+    <ToolBrowseAction state={mapStatus(status)} toolName="browse_text" input={args} output={result as any} />
+  ),
+});
+
+export const BrowseScreenshotToolUI = makeAssistantToolUI({
+  toolName: "browse_screenshot",
+  render: ({ args, result, status }) => (
+    <ToolBrowseAction state={mapStatus(status)} toolName="browse_screenshot" input={args} output={result as any} />
+  ),
+});
+
 /**
  * Array of all tool UI components. Render these inside AssistantRuntimeProvider
  * to register them with assistant-ui's tool rendering system.
@@ -306,5 +342,10 @@ export const AllToolUIs = () => (
     <GenerateReportToolUI />
     <RunCodeToolUI />
     <AgentCuratorToolUI />
+    <BrowseNavigateToolUI />
+    <BrowseSnapshotToolUI />
+    <BrowseActionToolUI />
+    <BrowseTextToolUI />
+    <BrowseScreenshotToolUI />
   </>
 );

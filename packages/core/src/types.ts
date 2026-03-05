@@ -57,6 +57,8 @@ export interface Config {
   sandboxUrl?: string;
   /** SearXNG web search URL (e.g. http://localhost:8080). Auto-detected in Docker/Railway if unset. */
   searchUrl?: string;
+  /** Pinchtab browser automation URL (e.g. http://localhost:9867). Auto-detected in Docker/Railway if unset. */
+  browserUrl?: string;
 }
 
 export interface Migration {

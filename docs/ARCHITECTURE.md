@@ -632,8 +632,8 @@ swarm_agents       (id, job_id FK, name TEXT, role TEXT, status, result TEXT,
                     created_at, updated_at)
 swarm_blackboard   (id, job_id FK, agent_id FK, key TEXT, value TEXT, created_at)
 
--- Artifacts — migration v1
-artifacts          (id, job_id FK, filename TEXT, mime_type TEXT, data BLOB, created_at)
+-- Artifacts — migration v2 (filesystem-backed, no BLOBs)
+artifacts          (id, job_id FK, name TEXT, mime_type TEXT, file_path TEXT, size INTEGER, created_at)
 ```
 
 ---

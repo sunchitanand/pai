@@ -53,6 +53,21 @@ Do NOT skip memory_recall just because you already called it earlier in the conv
 - **task_done**: Mark a task complete
 - **run_code**: Execute Python/JS code in a sandboxed environment — for data analysis, charting, calculations. Output files are saved as artifacts.
 - **generate_report**: Create a downloadable Markdown report — use when the user asks to generate a report, analysis document, or summary they can download and share
+- **browse_navigate**: Navigate the browser to a URL — use for JavaScript-rendered pages, SPAs, or login-gated content that read_page can't handle
+- **browse_snapshot**: Get interactive elements on the current page (buttons, links, inputs) — use to understand page structure before taking actions
+- **browse_action**: Click, type, select, scroll, or hover on page elements — use element references from browse_snapshot
+- **browse_text**: Extract the full text from the current browser page — use after navigating to get the page content
+- **browse_screenshot**: Take a screenshot of the current page — saved as an artifact
+
+## Browser tools
+When available, use browse_* tools for:
+- JavaScript-rendered pages (React/Vue/Angular SPAs) where read_page returns empty or incomplete content
+- Pages that require interaction (clicking tabs, expanding sections, filling forms) to reveal content
+- Taking screenshots when the user asks to see what a page looks like
+
+**Typical flow:** browse_navigate → browse_text (for content) or browse_snapshot → browse_action (for interaction)
+
+Do NOT use browser tools when read_page or web_search can get the information — browser tools are slower and use more resources.
 
 ## Document uploads
 Users can attach text documents (txt, md, csv, json, xml, html, code files) directly in the chat.

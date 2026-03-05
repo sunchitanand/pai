@@ -60,6 +60,7 @@ export default function Settings() {
   // Sidecar URLs
   const [sandboxUrl, setSandboxUrl] = useState("");
   const [searchUrl, setSearchUrl] = useState("");
+  const [browserUrl, setBrowserUrl] = useState("");
 
   // Debug settings
   const [debugResearch, setDebugResearch] = useState(false);
@@ -102,6 +103,7 @@ export default function Settings() {
       setKnowledgeCleanupEnabled(config.workers?.knowledgeCleanup !== false);
       setSandboxUrl(config.sandboxUrl ?? "");
       setSearchUrl(config.searchUrl ?? "");
+      setBrowserUrl(config.browserUrl ?? "");
     }
   }, [config, editing]);
 
@@ -124,6 +126,7 @@ export default function Settings() {
       if (knowledgeCleanupEnabled !== (config.workers?.knowledgeCleanup !== false)) updates.knowledgeCleanup = knowledgeCleanupEnabled;
       if (sandboxUrl !== (config.sandboxUrl ?? "")) updates.sandboxUrl = sandboxUrl;
       if (searchUrl !== (config.searchUrl ?? "")) updates.searchUrl = searchUrl;
+      if (browserUrl !== (config.browserUrl ?? "")) updates.browserUrl = browserUrl;
 
       if (Object.keys(updates).length === 0) {
         setEditing(false);
@@ -138,7 +141,7 @@ export default function Settings() {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save configuration");
     }
-  }, [provider, model, baseUrl, embedModel, embedProvider, apiKey, dataDir, timezone, telegramToken, telegramEnabled, bgLearningEnabled, briefingEnabled, knowledgeCleanupEnabled, sandboxUrl, searchUrl, config, updateConfigMut]);
+  }, [provider, model, baseUrl, embedModel, embedProvider, apiKey, dataDir, timezone, telegramToken, telegramEnabled, bgLearningEnabled, briefingEnabled, knowledgeCleanupEnabled, sandboxUrl, searchUrl, browserUrl, config, updateConfigMut]);
 
   const handleCancel = useCallback(() => {
     if (config) {
@@ -159,6 +162,7 @@ export default function Settings() {
     setDebugResearch(config?.debugResearch ?? false);
     setSandboxUrl(config?.sandboxUrl ?? "");
     setSearchUrl(config?.searchUrl ?? "");
+    setBrowserUrl(config?.browserUrl ?? "");
     setEditing(false);
   }, [config]);
 
@@ -684,10 +688,23 @@ export default function Settings() {
                         className="w-full rounded-md border border-border/50 bg-background px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
                       />
                     </div>
+                    <div className="space-y-1">
+                      <label className="flex items-center gap-1 text-xs text-muted-foreground">
+                        Browser URL
+                        <InfoBubble text="URL for the Pinchtab browser automation service (e.g. http://localhost:9867). Auto-detected in Docker/Railway if left empty. Enables browse_* tools for JS-rendered pages." side="right" />
+                      </label>
+                      <input
+                        type="text"
+                        value={browserUrl}
+                        onChange={(e) => setBrowserUrl(e.target.value)}
+                        placeholder="Auto-detect"
+                        className="w-full rounded-md border border-border/50 bg-background px-3 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+                      />
+                    </div>
                   </div>
                 </>
               )}
-              {!editing && (sandboxUrl || searchUrl) && (
+              {!editing && (sandboxUrl || searchUrl || browserUrl) && (
                 <div className="border-t border-border/30 px-5 py-3 space-y-1.5">
                   {sandboxUrl && (
                     <div className="flex items-center justify-between text-xs">
@@ -699,6 +716,12 @@ export default function Settings() {
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-muted-foreground">Search URL</span>
                       <span className="font-mono text-foreground/80">{searchUrl}</span>
+                    </div>
+                  )}
+                  {browserUrl && (
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-muted-foreground">Browser URL</span>
+                      <span className="font-mono text-foreground/80">{browserUrl}</span>
                     </div>
                   )}
                 </div>

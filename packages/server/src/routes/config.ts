@@ -50,6 +50,7 @@ function sanitizeConfig(config: { llm: Record<string, unknown>; telegram?: Recor
     debugResearch: !!config.debugResearch,
     sandboxUrl: config.sandboxUrl ?? "",
     searchUrl: config.searchUrl ?? "",
+    browserUrl: config.browserUrl ?? "",
   };
 }
 
@@ -113,6 +114,13 @@ const updateConfigSchema = z.object({
       try { return ["http:", "https:"].includes(new URL(v).protocol); } catch { return false; }
     },
     "Search URL must be a valid http or https URL",
+  ),
+  browserUrl: z.string().optional().refine(
+    (v) => {
+      if (v === undefined || v === "") return true;
+      try { return ["http:", "https:"].includes(new URL(v).protocol); } catch { return false; }
+    },
+    "Browser URL must be a valid http or https URL",
   ),
 });
 
@@ -214,6 +222,9 @@ export function registerConfigRoutes(app: FastifyInstance, serverCtx: ServerCont
     }
     if (body.searchUrl !== undefined) {
       update.searchUrl = body.searchUrl || undefined;
+    }
+    if (body.browserUrl !== undefined) {
+      update.browserUrl = body.browserUrl || undefined;
     }
 
     // Telegram settings
