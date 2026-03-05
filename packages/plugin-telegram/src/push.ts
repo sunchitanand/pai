@@ -1,8 +1,9 @@
-import { InputFile } from "grammy";
+import { InputFile, InlineKeyboard } from "grammy";
 import type { Bot } from "grammy";
 import type { Storage, Logger } from "@personal-ai/core";
 import { getArtifact, listArtifacts } from "@personal-ai/core";
-import { markdownToTelegramHTML, markdownToReportHTML, splitMessage, escapeHTML, formatTelegramResponse } from "./formatter.js";
+import { markdownToTelegramHTML, splitMessage, escapeHTML, formatTelegramResponse } from "./formatter.js";
+import { getOrCreateAccount, uploadImage, createPage } from "./telegraph.js";
 
 function findChatIdForBriefing(storage: Storage, briefingId: string): number | null {
   let jobId: string | null = null;
@@ -48,13 +49,12 @@ async function sendToTelegramChat(bot: Bot, chatId: number, html: string, logger
   }
 }
 
-/** Create a short preview (first ~500 chars) with a "see full report" note */
+/** Create a short preview (first ~500 chars) */
 function makePreview(report: string, maxLen = 500): string {
   if (report.length <= maxLen) return report;
-  // Cut at last newline within budget
   const cutIdx = report.lastIndexOf("\n", maxLen);
   const sliced = cutIdx > maxLen * 0.3 ? report.slice(0, cutIdx) : report.slice(0, maxLen);
-  return sliced.trimEnd() + "\n\n<i>Full report attached as document above.</i>";
+  return sliced.trimEnd();
 }
 
 async function checkAndPushResearch(storage: Storage, bot: Bot, logger: Logger): Promise<void> {
@@ -74,54 +74,11 @@ async function checkAndPushResearch(storage: Storage, bot: Bot, logger: Logger):
         // Send to the originating Telegram chat, not all chats
         const chatId = findChatIdForBriefing(storage, row.id);
         if (chatId) {
-          // 1. Send full report as downloadable HTML file
-          const fileTitle = title.replace(/[^a-zA-Z0-9 _-]/g, "").replace(/\s+/g, "_").slice(0, 60) || "report";
-          const htmlBody = markdownToReportHTML(formattedReport);
-          const htmlContent = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>${escapeHTML(title)}</title>
-  <style>
-    :root { color-scheme: light dark; }
-    body { font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; max-width: 920px; margin: 2rem auto; padding: 0 1rem; line-height: 1.65; }
-    article { background: color-mix(in srgb, canvas 96%, #3b82f6 4%); border: 1px solid color-mix(in srgb, canvastext 12%, transparent); border-radius: 12px; padding: 1.25rem; }
-    h1, h2, h3, h4 { line-height: 1.25; margin-top: 1.4em; margin-bottom: 0.5em; }
-    h1 { margin-top: 0.2rem; }
-    p { margin: 0.7em 0; }
-    ul, ol { padding-left: 1.35rem; margin: 0.6em 0; }
-    li { margin: 0.35em 0; }
-    pre { background: color-mix(in srgb, canvas 92%, #111827 8%); padding: 0.95rem; overflow-x: auto; border-radius: 8px; border: 1px solid color-mix(in srgb, canvastext 14%, transparent); }
-    code { background: color-mix(in srgb, canvas 92%, #111827 8%); padding: 0.1em 0.35em; border-radius: 6px; }
-    blockquote { border-left: 3px solid #60a5fa; margin: 1em 0; padding: 0.2em 0 0.2em 0.9em; color: color-mix(in srgb, canvastext 80%, transparent); }
-    a { color: #2563eb; }
-  </style>
-</head>
-<body>
-  <article>
-    <h1>${escapeHTML(title)}</h1>
-    ${htmlBody}
-  </article>
-</body>
-</html>`;
-          const htmlBuffer = Buffer.from(htmlContent, "utf-8");
-          try {
-            await bot.api.sendDocument(chatId, new InputFile(htmlBuffer, `${fileTitle}.html`), {
-              caption: `${emoji} ${label}: ${title}`,
-            });
-          } catch (err) {
-            logger.warn("Failed to send report document", { error: err instanceof Error ? err.message : String(err) });
-          }
-
-          // 2. Send a short preview in chat
-          const previewHtml = `${emoji} <b>${label}: ${escapeHTML(title)}</b>\n\n${markdownToTelegramHTML(makePreview(formattedReport))}`;
-          await sendToTelegramChat(bot, chatId, previewHtml, logger);
-
-          // 3. Send image artifacts (screenshots, charts) as downloadable documents
+          // Collect image artifacts for embedding in Telegraph
           const jobId = row.id.startsWith("research-") ? row.id.slice("research-".length)
             : row.id.startsWith("swarm-") ? row.id.slice("swarm-".length)
             : null;
+          const telegraphImages: Array<{ name: string; url: string }> = [];
           if (jobId) {
             try {
               const artifacts = listArtifacts(storage, jobId);
@@ -129,14 +86,71 @@ async function checkAndPushResearch(storage: Storage, bot: Bot, logger: Logger):
                 if (meta.mimeType.startsWith("image/")) {
                   const artifact = getArtifact(storage, meta.id);
                   if (artifact) {
-                    await bot.api.sendDocument(chatId, new InputFile(artifact.data, meta.name), {
-                      caption: meta.name,
-                    });
+                    const imgUrl = await uploadImage(artifact.data, meta.name, logger);
+                    if (imgUrl) {
+                      telegraphImages.push({ name: meta.name, url: imgUrl });
+                    }
                   }
                 }
               }
             } catch (err) {
-              logger.warn("Failed to send artifact documents", { jobId, error: err instanceof Error ? err.message : String(err) });
+              logger.warn("Failed to upload artifacts to Telegraph", { jobId, error: err instanceof Error ? err.message : String(err) });
+            }
+          }
+
+          // Try to publish as Telegraph article (Instant View)
+          let telegraphUrl: string | null = null;
+          try {
+            const account = await getOrCreateAccount(storage, logger);
+            if (account) {
+              const page = await createPage(account, title, parsed.report, telegraphImages, logger);
+              if (page) {
+                telegraphUrl = page.url;
+              }
+            }
+          } catch (err) {
+            logger.warn("Telegraph publish failed, falling back to text", { error: err instanceof Error ? err.message : String(err) });
+          }
+
+          // Send message with preview + Telegraph button (or fallback to text-only)
+          const preview = makePreview(formattedReport);
+          if (telegraphUrl) {
+            const previewHtml = `${emoji} <b>${label}: ${escapeHTML(title)}</b>\n\n${markdownToTelegramHTML(preview)}`;
+            const keyboard = new InlineKeyboard()
+              .url("Read Full Report", telegraphUrl);
+            const parts = splitMessage(previewHtml);
+            try {
+              // First part gets the keyboard button
+              await bot.api.sendMessage(chatId, parts[0]!, { parse_mode: "HTML", reply_markup: keyboard });
+              for (let pi = 1; pi < parts.length; pi++) {
+                await bot.api.sendMessage(chatId, parts[pi]!, { parse_mode: "HTML" });
+              }
+            } catch {
+              // Fallback: send without keyboard
+              await sendToTelegramChat(bot, chatId, previewHtml, logger);
+            }
+            logger.info("Research report published to Telegraph", { briefingId: row.id, url: telegraphUrl });
+          } else {
+            // Fallback: send full report as text messages
+            const fullHtml = `${emoji} <b>${label}: ${escapeHTML(title)}</b>\n\n${markdownToTelegramHTML(formattedReport)}`;
+            await sendToTelegramChat(bot, chatId, fullHtml, logger);
+            // Send image artifacts as documents if Telegraph upload failed
+            if (jobId && telegraphImages.length === 0) {
+              try {
+                const artifacts = listArtifacts(storage, jobId);
+                for (const meta of artifacts) {
+                  if (meta.mimeType.startsWith("image/")) {
+                    const artifact = getArtifact(storage, meta.id);
+                    if (artifact) {
+                      await bot.api.sendDocument(chatId, new InputFile(artifact.data, meta.name), {
+                        caption: meta.name,
+                      });
+                    }
+                  }
+                }
+              } catch (err) {
+                logger.warn("Failed to send artifact documents", { jobId, error: err instanceof Error ? err.message : String(err) });
+              }
             }
           }
 

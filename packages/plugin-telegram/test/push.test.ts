@@ -3,6 +3,13 @@ import { startResearchPushLoop } from "../src/push.js";
 import type { Bot } from "grammy";
 import type { Storage, Logger } from "@personal-ai/core";
 
+// Mock telegraph module so it doesn't make real HTTP calls
+vi.mock("../src/telegraph.js", () => ({
+  getOrCreateAccount: vi.fn().mockResolvedValue(null),
+  uploadImage: vi.fn().mockResolvedValue(null),
+  createPage: vi.fn().mockResolvedValue(null),
+}));
+
 function createMockStorage(rows: Array<{ id: string; sections: string }> = []): Storage {
   return {
     query: vi.fn().mockReturnValue(rows),
@@ -84,6 +91,7 @@ describe("startResearchPushLoop", () => {
     // Allow async to settle
     await vi.advanceTimersByTimeAsync(0);
 
+    // Telegraph returns null (mocked) so falls back to text messages
     expect(bot.api.sendMessage).toHaveBeenCalledWith(
       12345,
       expect.stringContaining("Research Complete"),
@@ -173,6 +181,7 @@ describe("startResearchPushLoop", () => {
     vi.advanceTimersByTime(1000);
     await vi.advanceTimersByTimeAsync(0);
 
+    // Telegraph returns null (mocked) so falls back to text messages
     expect(bot.api.sendMessage).toHaveBeenCalledWith(
       67890,
       expect.stringContaining("Swarm Report"),

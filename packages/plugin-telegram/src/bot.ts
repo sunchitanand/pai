@@ -1,6 +1,7 @@
-import { Bot, InputFile } from "grammy";
+import { Bot, InputFile, InlineKeyboard } from "grammy";
 import type { AgentPlugin, PluginContext } from "@personal-ai/core";
 import { listBeliefs, getThread, formatDateTime, parseTimestamp, getArtifact } from "@personal-ai/core";
+import { getOrCreateAccount, uploadImage, createPage } from "./telegraph.js";
 import { listTasks } from "@personal-ai/plugin-tasks";
 import { listResearchJobs, createResearchJob, runResearchInBackground } from "@personal-ai/plugin-research";
 import type { ResearchContext } from "@personal-ai/plugin-research";
@@ -325,23 +326,58 @@ export function createBot(token: string, ctx: PluginContext, agentPlugin: AgentP
         }
       }
 
-      // Send artifacts as downloadable documents (screenshots, reports, charts)
+      // Send artifacts — publish reports to Telegraph, send images as documents
       if (result.artifacts?.length) {
-        for (const art of result.artifacts) {
+        // Separate reports from images/other files
+        const reports = result.artifacts.filter(a => a.name.endsWith(".md"));
+        const others = result.artifacts.filter(a => !a.name.endsWith(".md"));
+
+        // Publish markdown reports to Telegraph for Instant View
+        for (const art of reports) {
           try {
             const artifact = getArtifact(ctx.storage, art.id);
             if (!artifact) continue;
-            if (artifact.mimeType.startsWith("image/")) {
-              // Send images as photos with document fallback for large files
-              await bot.api.sendDocument(chatId, new InputFile(artifact.data, art.name), {
-                caption: art.name,
-              });
-            } else {
-              // Send reports, data files, etc. as documents
-              await bot.api.sendDocument(chatId, new InputFile(artifact.data, art.name), {
-                caption: art.name,
-              });
+            const mdContent = artifact.data.toString("utf-8");
+            const titleMatch = mdContent.match(/^#\s+(.+)$/m);
+            const reportTitle = titleMatch?.[1] ?? art.name.replace(/\.md$/, "");
+
+            // Upload any image artifacts to Telegraph for embedding
+            const images: Array<{ name: string; url: string }> = [];
+            for (const img of others) {
+              const imgArt = getArtifact(ctx.storage, img.id);
+              if (imgArt?.mimeType.startsWith("image/")) {
+                const imgUrl = await uploadImage(imgArt.data, img.name, ctx.logger);
+                if (imgUrl) images.push({ name: img.name, url: imgUrl });
+              }
             }
+
+            const account = await getOrCreateAccount(ctx.storage, ctx.logger);
+            if (account) {
+              const page = await createPage(account, reportTitle, mdContent, images, ctx.logger);
+              if (page) {
+                const keyboard = new InlineKeyboard().url("Read Full Report", page.url);
+                await bot.api.sendMessage(chatId, `\uD83D\uDCCB <b>${escapeHTML(reportTitle)}</b>`, {
+                  parse_mode: "HTML",
+                  reply_markup: keyboard,
+                });
+                continue;
+              }
+            }
+            // Fallback: send as document
+            await bot.api.sendDocument(chatId, new InputFile(artifact.data, art.name), { caption: art.name });
+          } catch (err) {
+            ctx.logger.warn("Failed to send report artifact", { artifactId: art.id, error: err instanceof Error ? err.message : String(err) });
+          }
+        }
+
+        // Send non-report artifacts as documents
+        for (const art of others) {
+          try {
+            const artifact = getArtifact(ctx.storage, art.id);
+            if (!artifact) continue;
+            await bot.api.sendDocument(chatId, new InputFile(artifact.data, art.name), {
+              caption: art.name,
+            });
           } catch (err) {
             ctx.logger.warn("Failed to send artifact", { artifactId: art.id, error: err instanceof Error ? err.message : String(err) });
           }
