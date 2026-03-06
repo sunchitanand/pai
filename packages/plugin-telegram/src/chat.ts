@@ -266,6 +266,8 @@ export async function runAgentChat(opts: ChatPipelineOptions): Promise<ChatPipel
   text = text.replace(/^[\s,]+|[\s,]+$/g, "").trim();
   // Strip root-relative artifact links (e.g. [report](/api/artifacts/...)) — files are sent as Telegram documents
   text = text.replace(/\[([^\]]+)\]\(\/api\/artifacts\/[^)]+\)/g, "$1 (attached below)").trim();
+  // Strip json/jsonrender fenced blocks (UI render specs not meant for human consumption)
+  text = text.replace(/```(?:json|jsonrender)\s*[\s\S]*?```/g, "").trim();
 
   // Build persisted messages — include tool call summaries so model retains context
   const toPersist: ThreadMessageInput[] = [
