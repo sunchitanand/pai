@@ -49,7 +49,7 @@ export function MobileTabBar({ hasNewBriefing, activeJobCount }: MobileTabBarPro
   );
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border/40 bg-[#0a0a0a] pb-[env(safe-area-inset-bottom)] md:hidden">
+    <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border/40 bg-background pb-[env(safe-area-inset-bottom)] md:hidden">
       <div className="flex items-stretch">
         {primaryTabs.map((tab) => (
           <NavLink
@@ -91,7 +91,7 @@ export function MobileTabBar({ hasNewBriefing, activeJobCount }: MobileTabBarPro
 
           {/* More popover */}
           {moreOpen && (
-            <div className="absolute bottom-full right-0 mb-2 mr-1 w-44 rounded-lg border border-border/50 bg-[#141414] py-1 shadow-xl">
+            <div className="absolute bottom-full right-0 mb-2 mr-1 w-44 rounded-lg border border-border/50 bg-popover py-1 shadow-xl">
               {moreTabs.map((tab) => (
                 <NavLink
                   key={tab.to}

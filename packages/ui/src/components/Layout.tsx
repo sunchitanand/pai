@@ -48,9 +48,9 @@ export default function Layout() {
   }, [location.pathname, latestId]);
 
   return (
-    <div className="flex h-dvh w-screen overflow-hidden bg-[#0a0a0a]">
+    <div className="flex h-dvh w-screen overflow-hidden bg-background">
       {/* Desktop sidebar — hidden on mobile, replaced by bottom tab bar */}
-      <nav className="hidden md:flex h-full w-14 flex-col items-center border-r border-border/40 bg-[#0a0a0a] py-4">
+      <nav className="hidden md:flex h-full w-14 flex-col items-center border-r border-border/40 bg-background py-4">
         {/* Branding */}
         <div className="mb-2 font-mono text-base font-bold tracking-tighter text-primary">
           pai
@@ -80,10 +80,10 @@ export default function Layout() {
                     <item.icon />
                   </NavLink>
                   {item.to === "/" && hasNewBriefing && (
-                    <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-primary ring-2 ring-[#0a0a0a] pointer-events-none" />
+                    <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-primary ring-2 ring-background pointer-events-none" />
                   )}
                   {item.to === "/jobs" && activeJobCount > 0 && (
-                    <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground ring-2 ring-[#0a0a0a] pointer-events-none">
+                    <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground ring-2 ring-background pointer-events-none">
                       {activeJobCount}
                     </span>
                   )}
@@ -98,7 +98,7 @@ export default function Layout() {
       </nav>
 
       {/* Main content — bottom padding on mobile to clear tab bar */}
-      <main className="flex flex-1 flex-col overflow-hidden bg-[#0f0f0f] pb-14 md:pb-0">
+      <main className="flex flex-1 flex-col overflow-hidden bg-card pb-14 md:pb-0">
         <OfflineBanner />
         <div className="flex-1 overflow-hidden">
           <Outlet />

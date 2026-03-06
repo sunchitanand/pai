@@ -284,7 +284,7 @@ export default function Tasks() {
     <div className="flex h-full flex-col overflow-hidden">
       <FirstVisitBanner pageKey="tasks" tip="Your to-do list with goals and priorities. Ask me in chat to add tasks, or create them here directly." />
       {/* Top-level tabs */}
-      <header className="space-y-2 border-b border-border/40 bg-[#0a0a0a] px-3 py-3 md:space-y-4 md:px-6 md:py-4">
+      <header className="space-y-2 border-b border-border/40 bg-background px-3 py-3 md:space-y-4 md:px-6 md:py-4">
         <Tabs
           value={activeTab}
           onValueChange={(v) => setActiveTab(v as "tasks" | "goals")}
