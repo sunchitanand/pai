@@ -1144,7 +1144,7 @@ export async function runResearchInBackground(
         ],
         tools,
         toolChoice: "auto",
-        stopWhen: stepCountIs(8),
+        stopWhen: stepCountIs(15),
         maxRetries: 1,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         providerOptions: getProviderOptions(ctx.provider ?? "ollama", budget.contextWindow) as any,
@@ -1161,7 +1161,50 @@ export async function runResearchInBackground(
       },
     );
 
-    const rawReport = result.text || "Research completed but no report was generated.";
+    let rawReport = result.text;
+
+    // If the LLM exhausted all steps on tool calls without producing a report,
+    // do a follow-up call to synthesize findings from the tool results.
+    if (!rawReport) {
+      ctx.logger.warn(`Research job ${jobId}: no report text, running synthesis pass`);
+      const toolResults = result.steps
+        .flatMap((s) => s.toolResults ?? [])
+        .map((r) => String((r as Record<string, unknown>).result ?? ""))
+        .filter((r) => r.length > 10)
+        .join("\n\n---\n\n")
+        .slice(0, 30_000);
+
+      if (toolResults) {
+        const { result: synthResult } = await instrumentedGenerateText(
+          { storage: ctx.storage, logger: ctx.logger },
+          {
+            model: ctx.llm.getModel() as LanguageModel,
+            system: systemPrompt,
+            messages: [
+              { role: "user", content: `Research this topic thoroughly: ${job.goal}` },
+              { role: "assistant", content: `I've gathered the following research data:\n\n${toolResults}` },
+              { role: "user", content: "Now synthesize all findings into the structured markdown report." },
+            ],
+            maxRetries: 1,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            providerOptions: getProviderOptions(ctx.provider ?? "ollama", budget.contextWindow) as any,
+          },
+          {
+            spanType: "llm",
+            process: "research.synthesize",
+            surface: "worker",
+            threadId: job.threadId,
+            jobId,
+            provider: ctx.provider ?? "ollama",
+            model: ctx.model ?? "",
+            requestSizeChars: toolResults.length,
+          },
+        );
+        rawReport = synthResult.text || "";
+      }
+    }
+
+    if (!rawReport) rawReport = "Research completed but no report was generated.";
     let { report, structuredResult, renderSpec } = extractPresentationBlocks(rawReport);
 
     // Generate charts for stock research via sandbox (if available)
