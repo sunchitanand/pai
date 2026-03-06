@@ -794,11 +794,13 @@ function DailyBriefingCard({ item, onCardClick, isRead }: { item: InboxItem; onC
   );
 }
 
-/** Strip jsonrender and json code fences from report markdown so they don't render as raw code blocks in previews. */
+/** Strip render blocks, json code fences, and markdown tables from report content for clean text display. */
 function stripCodeFences(md: string): string {
   return md
     .replace(/```jsonrender\s*[\s\S]*?```/g, "")
     .replace(/```json\s*[\s\S]*?```/g, "")
+    .replace(/```\w*\n[\s\S]*?```/g, "")
+    .replace(/^\|.+\|\n\|[\s:|-]+\|\n(?:\|.+\|\n?)+/gm, "")
     .trim();
 }
 

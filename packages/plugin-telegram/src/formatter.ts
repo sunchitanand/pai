@@ -148,6 +148,32 @@ export function markdownToTelegramHTML(md: string): string {
     return `\x00IC${idx}\x00`;
   });
 
+  // Convert markdown tables to readable key-value or pre-formatted text
+  result = result.replace(
+    /^(\|.+\|)\n(\|[\s:|-]+\|)\n((?:\|.+\|\n?)+)/gm,
+    (_m, headerRow: string, _sep: string, bodyRows: string) => {
+      const headers = headerRow.split("|").slice(1, -1).map((c: string) => c.trim());
+      const rows = bodyRows.trim().split("\n").map((row: string) =>
+        row.split("|").slice(1, -1).map((c: string) => c.trim())
+      );
+      // For 2-column tables (key-value), use bullet format
+      if (headers.length === 2) {
+        return rows.map((cols) => `\u2022 ${cols[0]}: ${cols[1]}`).join("\n");
+      }
+      // For wider tables, use pre-formatted block
+      const colWidths = headers.map((h, i) =>
+        Math.max(h.length, ...rows.map((r) => (r[i] ?? "").length))
+      );
+      const pad = (s: string, w: number) => s + " ".repeat(Math.max(0, w - s.length));
+      const headerLine = headers.map((h, i) => pad(h, colWidths[i] ?? h.length)).join(" | ");
+      const sepLine = colWidths.map((w) => "-".repeat(w)).join("-+-");
+      const bodyLines = rows.map((cols) =>
+        cols.map((c, i) => pad(c, colWidths[i] ?? c.length)).join(" | ")
+      );
+      return "```\n" + headerLine + "\n" + sepLine + "\n" + bodyLines.join("\n") + "\n```";
+    }
+  );
+
   // Escape HTML in remaining text
   result = escapeHTML(result);
 
