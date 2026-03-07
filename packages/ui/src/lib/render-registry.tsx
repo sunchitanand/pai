@@ -15,8 +15,48 @@ import {
   Plane,
   FileText,
   BarChart2,
+  Download,
 } from "lucide-react";
 import { useState } from "react";
+import {
+  buildAreaPath,
+  buildDonutSegments,
+  buildLinePath,
+  buildLinePoints,
+  formatChartValue,
+  getChartBounds,
+} from "./chart-utils";
+
+const DEFAULT_CHART_COLORS = [
+  "var(--chart-1)",
+  "var(--chart-2)",
+  "var(--chart-3)",
+  "var(--chart-4)",
+  "var(--chart-5)",
+  "var(--primary)",
+];
+
+function ChartShell({
+  title,
+  children,
+  footer,
+}: {
+  title?: string | null;
+  children: React.ReactNode;
+  footer?: React.ReactNode;
+}) {
+  return (
+    <div className="overflow-hidden rounded-lg border border-border/50 bg-card/70 text-card-foreground">
+      {title && <div className="px-4 pt-4 text-sm font-semibold text-foreground">{title}</div>}
+      <div className="px-3 py-3">{children}</div>
+      {footer && <div className="border-t border-border/40 px-4 py-2 text-xs text-muted-foreground">{footer}</div>}
+    </div>
+  );
+}
+
+function ChartEmptyState({ message }: { message: string }) {
+  return <div className="rounded-lg border border-dashed border-border/50 px-4 py-6 text-sm text-muted-foreground">{message}</div>;
+}
 
 export const { registry, handlers, executeAction } = defineRegistry(resultCatalog, {
   components: {
@@ -24,21 +64,21 @@ export const { registry, handlers, executeAction } = defineRegistry(resultCatalo
       const [open, setOpen] = useState(props.defaultOpen !== false);
       if (props.collapsible) {
         return (
-          <div className="border border-zinc-700/50 rounded-lg mb-5 overflow-hidden">
+          <div className="mb-5 overflow-hidden rounded-lg border border-border/50 bg-card/60">
             <button
-              className="w-full flex items-center justify-between px-4 py-3 bg-zinc-800/50 hover:bg-zinc-800 text-left"
+              className="flex w-full items-center justify-between bg-card/40 px-4 py-3 text-left transition-colors hover:bg-accent/50"
               onClick={() => setOpen(!open)}
             >
               <div>
-                <span className="font-semibold text-zinc-100">{props.title}</span>
+                <span className="font-semibold text-foreground">{props.title}</span>
                 {props.subtitle && (
-                  <span className="ml-2 text-sm text-zinc-400">{props.subtitle}</span>
+                  <span className="ml-2 text-sm text-muted-foreground">{props.subtitle}</span>
                 )}
               </div>
               {open ? (
-                <ChevronDown className="w-4 h-4 text-zinc-400" />
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
               ) : (
-                <ChevronRight className="w-4 h-4 text-zinc-400" />
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
               )}
             </button>
             {open && <div className="px-4 py-4 space-y-3">{children}</div>}
@@ -47,8 +87,8 @@ export const { registry, handlers, executeAction } = defineRegistry(resultCatalo
       }
       return (
         <div className="mb-6">
-          <h3 className="font-semibold text-zinc-100 mb-3">{props.title}</h3>
-          {props.subtitle && <p className="text-sm text-zinc-400 mb-3">{props.subtitle}</p>}
+          <h3 className="mb-3 font-semibold text-foreground">{props.title}</h3>
+          {props.subtitle && <p className="mb-3 text-sm text-muted-foreground">{props.subtitle}</p>}
           {children}
         </div>
       );
@@ -80,24 +120,24 @@ export const { registry, handlers, executeAction } = defineRegistry(resultCatalo
     MetricCard: ({ props }) => {
       const trendIcon =
         props.trend === "up" ? (
-          <TrendingUp className="w-4 h-4 text-green-400" />
+          <TrendingUp className="h-4 w-4 text-emerald-500" />
         ) : props.trend === "down" ? (
-          <TrendingDown className="w-4 h-4 text-red-400" />
+          <TrendingDown className="h-4 w-4 text-rose-500" />
         ) : props.trend === "neutral" ? (
-          <Minus className="w-4 h-4 text-zinc-400" />
+          <Minus className="h-4 w-4 text-muted-foreground" />
         ) : null;
       return (
-        <div className="bg-zinc-800/50 border border-zinc-700/50 rounded-lg p-3">
-          <div className="text-xs text-zinc-400 mb-1">{props.label}</div>
+        <div className="rounded-lg border border-border/50 bg-card/60 p-3">
+          <div className="mb-1 text-xs text-muted-foreground">{props.label}</div>
           <div className="flex items-center gap-2">
-            <span className="text-lg font-bold text-zinc-100">
+            <span className="text-lg font-bold text-foreground">
               {props.value}
               {props.unit ? ` ${props.unit}` : ""}
             </span>
             {trendIcon}
           </div>
           {props.description && (
-            <div className="text-xs text-zinc-500 mt-1">{props.description}</div>
+            <div className="mt-1 text-xs text-muted-foreground">{props.description}</div>
           )}
         </div>
       );
@@ -233,6 +273,176 @@ export const { registry, handlers, executeAction } = defineRegistry(resultCatalo
       );
     },
 
+    LineChart: ({ props }) => {
+      const labels = props.labels ?? [];
+      const values = props.values ?? [];
+      if (labels.length === 0 || values.length === 0 || labels.length !== values.length) {
+        return <ChartEmptyState message="Line chart data is unavailable." />;
+      }
+
+      const width = 360;
+      const height = 220;
+      const padding = 24;
+      const chartBottom = height - 34;
+      const points = buildLinePoints(values, width, chartBottom, padding, props.minValue, props.maxValue);
+      const linePath = buildLinePath(points);
+      const areaPath = props.showArea ? buildAreaPath(points, chartBottom, padding) : "";
+      const bounds = getChartBounds(values, props.minValue, props.maxValue);
+      const currentValue = values[values.length - 1];
+      const stroke = props.color ?? DEFAULT_CHART_COLORS[0];
+      const gridLines = Array.from({ length: 4 }, (_, index) => {
+        const ratio = index / 3;
+        return padding + ratio * (chartBottom - padding);
+      });
+
+      return (
+        <ChartShell
+          title={props.title}
+          footer={
+            <div className="flex items-center justify-between gap-2">
+              <span>Min {formatChartValue(bounds.min, props.valuePrefix, props.valueSuffix)}</span>
+              <span className="font-medium text-foreground">
+                Latest {formatChartValue(currentValue, props.valuePrefix, props.valueSuffix)}
+              </span>
+              <span>Max {formatChartValue(bounds.max, props.valuePrefix, props.valueSuffix)}</span>
+            </div>
+          }
+        >
+          <svg viewBox={`0 0 ${width} ${height}`} className="w-full">
+            {gridLines.map((y, index) => (
+              <line
+                key={index}
+                x1={padding}
+                x2={width - padding}
+                y1={y}
+                y2={y}
+                stroke="var(--border)"
+                strokeOpacity="0.9"
+                strokeDasharray={index === gridLines.length - 1 ? undefined : "3 3"}
+              />
+            ))}
+            {areaPath && <path d={areaPath} fill={stroke} opacity={0.14} />}
+            <path d={linePath} fill="none" stroke={stroke} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+            {points.map((point, index) => (
+              <g key={labels[index]}>
+                <circle cx={point.x} cy={point.y} r="4" fill={stroke} />
+                <circle cx={point.x} cy={point.y} r="7" fill={stroke} opacity="0.18" />
+                <text x={point.x} y={height - 8} textAnchor="middle" fontSize="11" fill="var(--muted-foreground)">
+                  {labels[index]}
+                </text>
+              </g>
+            ))}
+          </svg>
+        </ChartShell>
+      );
+    },
+
+    BarChart: ({ props }) => {
+      const data = props.data ?? [];
+      if (data.length === 0) {
+        return <ChartEmptyState message="Bar chart data is unavailable." />;
+      }
+
+      const maxValue = props.maxValue ?? Math.max(...data.map((item) => item.value), 1);
+
+      return (
+        <ChartShell title={props.title}>
+          <div className="flex items-end gap-3">
+            {data.map((item, index) => {
+              const height = Math.max(10, (Math.max(0, item.value) / Math.max(1, maxValue)) * 160);
+              const color = item.color ?? DEFAULT_CHART_COLORS[index % DEFAULT_CHART_COLORS.length];
+              return (
+                <div key={item.label} className="flex flex-1 flex-col items-center gap-2">
+                  <div className="text-[11px] font-medium text-foreground/80">
+                    {formatChartValue(item.value, props.valuePrefix, props.valueSuffix)}
+                  </div>
+                  <div className="flex h-40 w-full items-end justify-center">
+                    <div
+                      className="w-full max-w-16 rounded-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]"
+                      style={{ height: `${height}px`, backgroundColor: color }}
+                    />
+                  </div>
+                  <div className="text-center text-[11px] text-muted-foreground">{item.label}</div>
+                </div>
+              );
+            })}
+          </div>
+        </ChartShell>
+      );
+    },
+
+    DonutChart: ({ props }) => {
+      const data = props.data ?? [];
+      if (data.length === 0) {
+        return <ChartEmptyState message="Donut chart data is unavailable." />;
+      }
+
+      const radius = 44;
+      const circumference = 2 * Math.PI * radius;
+      const segments = buildDonutSegments(data, circumference);
+
+      return (
+        <ChartShell title={props.title}>
+          <div className="flex flex-col gap-4 md:flex-row md:items-center">
+            <div className="mx-auto shrink-0">
+              <svg viewBox="0 0 120 120" className="h-40 w-40 -rotate-90">
+                <circle
+                  cx="60"
+                  cy="60"
+                  r={radius}
+                  fill="none"
+                  stroke="var(--border)"
+                  strokeOpacity="0.8"
+                  strokeWidth="16"
+                />
+                {segments.map((segment, index) => (
+                  <circle
+                    key={`${segment.label}-${index}`}
+                    cx="60"
+                    cy="60"
+                    r={radius}
+                    fill="none"
+                    stroke={segment.color ?? DEFAULT_CHART_COLORS[index % DEFAULT_CHART_COLORS.length]}
+                    strokeWidth="16"
+                    strokeLinecap="round"
+                    strokeDasharray={`${segment.dashLength} ${circumference}`}
+                    strokeDashoffset={segment.dashOffset}
+                  />
+                ))}
+                <g transform="rotate(90 60 60)">
+                  <text x="60" y="54" textAnchor="middle" fontSize="12" fill="var(--muted-foreground)">
+                    {props.centerLabel ?? "Total"}
+                  </text>
+                  <text x="60" y="70" textAnchor="middle" fontSize="16" fontWeight="700" fill="var(--foreground)">
+                    {formatChartValue(data.reduce((sum, item) => sum + item.value, 0), null, props.valueSuffix)}
+                  </text>
+                </g>
+              </svg>
+            </div>
+            <div className="flex-1 space-y-2">
+              {segments.map((segment, index) => (
+                <div key={segment.label} className="flex items-center justify-between gap-3 rounded-lg border border-border/40 bg-card/50 px-3 py-2">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="h-3 w-3 rounded-full"
+                      style={{ backgroundColor: segment.color ?? DEFAULT_CHART_COLORS[index % DEFAULT_CHART_COLORS.length] }}
+                    />
+                    <span className="text-sm text-foreground">{segment.label}</span>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-medium text-foreground">
+                      {formatChartValue(segment.value, null, props.valueSuffix)}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground">{Math.round(segment.percentage * 100)}%</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </ChartShell>
+      );
+    },
+
     Heading: ({ props }) => {
       const sizes: Record<string, string> = {
         "1": "text-xl font-bold",
@@ -334,9 +544,16 @@ export const { registry, handlers, executeAction } = defineRegistry(resultCatalo
     ChartImage: ({ props }) => (
       <div className="rounded-lg overflow-hidden border border-zinc-700/50">
         <img src={props.src} alt={props.alt} className="w-full" />
-        {props.caption && (
-          <div className="text-xs text-zinc-500 px-3 py-2 bg-zinc-800/50">
-            {props.caption}
+        {(props.caption || props.src) && (
+          <div className="flex items-center justify-between gap-3 text-xs text-zinc-500 px-3 py-2 bg-zinc-800/50">
+            <span className="min-w-0 flex-1">{props.caption}</span>
+            <a
+              href={props.src}
+              download
+              className="shrink-0 text-zinc-400 transition-colors hover:text-zinc-200"
+            >
+              <Download className="h-3.5 w-3.5" />
+            </a>
           </div>
         )}
       </div>
