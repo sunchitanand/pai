@@ -66,7 +66,6 @@ export default function Chat() {
         threadSidebarOpen={threadSidebarOpen}
         setThreadSidebarOpen={setThreadSidebarOpen}
         isMobile={isMobile}
-        threads={threads}
         searchParams={searchParams}
         setSearchParams={setSearchParams}
         queryClient={queryClient}
@@ -91,7 +90,6 @@ function ChatInner({
   threadSidebarOpen,
   setThreadSidebarOpen,
   isMobile,
-  threads,
   searchParams,
   setSearchParams,
   queryClient,
@@ -107,7 +105,6 @@ function ChatInner({
   threadSidebarOpen: boolean;
   setThreadSidebarOpen: (open: boolean) => void;
   isMobile: boolean;
-  threads: Thread[];
   searchParams: URLSearchParams;
   setSearchParams: ReturnType<typeof useSearchParams>[1];
   queryClient: ReturnType<typeof useQueryClient>;
@@ -121,52 +118,60 @@ function ChatInner({
   // Load thread from URL params on mount (inbox auto-send flow)
   useEffect(() => {
     if (initializedRef.current) return;
-    initializedRef.current = true;
 
     const threadParam = searchParams.get("thread");
-    if (threadParam) {
-      const found = threads.find((t) => t.id === threadParam);
-      if (found) {
-        setActiveThreadId(found.id);
-        activeThreadIdRef.current = found.id;
+    if (!threadParam) {
+      // No thread param — mark initialized so we don't re-run
+      initializedRef.current = true;
+      return;
+    }
 
-        // Load chat history for the selected thread
-        getChatHistory(found.id).then((history) => {
-          handleRef.current?.setChatMessages(
-            history.map((m, i) => ({
-              id: `hist-${found.id}-${i}`,
-              role: m.role as "user" | "assistant",
-              parts: [{ type: "text" as const, text: m.content }],
-              createdAt: new Date(),
-            })),
-          );
-          requestAnimationFrame(() => {
-            const viewport = document.querySelector(".aui-thread-viewport");
-            if (viewport) viewport.scrollTop = viewport.scrollHeight;
-          });
-        }).catch(() => {
-          handleRef.current?.setChatMessages([]);
-        });
-      }
-      // Clear the query params so they don't persist on refresh
-      setSearchParams({}, { replace: true });
+    // When navigating from Inbox "Start Chat", the newly created thread may
+    // not be in the cached list yet. Activate it directly by ID — don't
+    // require it to be in the threads array.
+    initializedRef.current = true;
+    setActiveThreadId(threadParam);
+    activeThreadIdRef.current = threadParam;
 
-      // Check sessionStorage for auto-send context (e.g. from Inbox "Start Chat")
-      const autoSendRaw = sessionStorage.getItem("pai-chat-auto-send");
-      if (autoSendRaw) {
-        sessionStorage.removeItem("pai-chat-auto-send");
-        try {
-          const { threadId, message } = JSON.parse(autoSendRaw) as { threadId: string; message: string };
-          if (threadId === threadParam && message) {
-            setTimeout(() => {
-              handleRef.current?.sendMessage({ parts: [{ type: "text", text: message }] });
-            }, 300);
-          }
-        } catch { /* ignore parse errors */ }
-      }
+    // Refresh thread list so the sidebar picks up the new thread
+    queryClient.invalidateQueries({ queryKey: threadKeys.all });
+
+    // Load chat history for the selected thread
+    getChatHistory(threadParam).then((history) => {
+      handleRef.current?.setChatMessages(
+        history.map((m, i) => ({
+          id: `hist-${threadParam}-${i}`,
+          role: m.role as "user" | "assistant",
+          parts: [{ type: "text" as const, text: m.content }],
+          createdAt: new Date(),
+        })),
+      );
+      requestAnimationFrame(() => {
+        const viewport = document.querySelector(".aui-thread-viewport");
+        if (viewport) viewport.scrollTop = viewport.scrollHeight;
+      });
+    }).catch(() => {
+      handleRef.current?.setChatMessages([]);
+    });
+
+    // Clear the query params so they don't persist on refresh
+    setSearchParams({}, { replace: true });
+
+    // Check sessionStorage for auto-send context (e.g. from Inbox "Start Chat")
+    const autoSendRaw = sessionStorage.getItem("pai-chat-auto-send");
+    if (autoSendRaw) {
+      sessionStorage.removeItem("pai-chat-auto-send");
+      try {
+        const { threadId, message } = JSON.parse(autoSendRaw) as { threadId: string; message: string };
+        if (threadId === threadParam && message) {
+          setTimeout(() => {
+            handleRef.current?.sendMessage({ parts: [{ type: "text", text: message }] });
+          }, 300);
+        }
+      } catch { /* ignore parse errors */ }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [threads.length > 0]); // Wait for threads to load
+  }, []); // Run once on mount — no dependency on threads list
 
   // Load messages when switching threads
   const switchThread = useCallback(

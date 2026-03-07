@@ -17,7 +17,7 @@ import {
   getThread,
   getOwner,
   getCorePreferences,
-  formatDateTime,
+  currentDateBlock,
   getContextBudget,
   estimateTokens,
   getProviderOptions,
@@ -452,9 +452,8 @@ export function registerAgentRoutes(app: FastifyInstance, { ctx, agents }: Serve
       ? `\n\n## ${ownerName}'s core preferences (always apply these)\n${corePrefs.map((b) => `- ${b.statement}`).join("\n")}`
       : "";
 
-    const dt = formatDateTime(ctx.config.timezone);
     let systemPrompt = agentPlugin.agent.systemPrompt +
-      `\n\nCurrent date and time: ${dt.full}. Use this for time-sensitive queries.` +
+      `\n\n${currentDateBlock(ctx.config.timezone)}` +
       `\n\nYour owner's name is ${ownerName}. You are talking to them via the web UI. When they say "my" or "I", it refers to ${ownerName}. Memories tagged "owner" are about this person. Do not confuse ${ownerName} with other people mentioned in memories.` +
       prefsBlock;
     const stream = createUIMessageStream({

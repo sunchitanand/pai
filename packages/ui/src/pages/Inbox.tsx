@@ -268,9 +268,10 @@ function InboxDetail({ id }: { id: string }) {
     setCreating(true);
     try {
       const sections = item.sections as { goal?: string; report?: string; greeting?: string };
-      const title = item.type === "research"
+      const rawTitle = item.type === "research"
         ? `Research: ${sections.goal ?? "Report"}`
         : sections.greeting?.slice(0, 60) ?? "Briefing Discussion";
+      const title = rawTitle.length > 200 ? rawTitle.slice(0, 197) + "..." : rawTitle;
       const thread = await createThreadMut.mutateAsync({ title });
       const context = item.type === "research"
         ? `I'd like to discuss this research report:\n\n**Goal:** ${sections.goal}\n\n${sections.report ?? ""}`

@@ -5,6 +5,7 @@ import { nanoid } from "nanoid";
 import type { BackgroundJobSourceKind, Storage, LLMClient, Logger, ResearchResultType } from "@personal-ai/core";
 import {
   formatDateTime,
+  currentDateBlock,
   detectResearchDomain,
   getContextBudget,
   getProviderOptions,
@@ -281,8 +282,7 @@ function getResearchSystemPrompt(timezone?: string): string {
 
   return `You are a Research Agent. Your job is to thoroughly research a topic and produce a structured report.
 
-## Current Date
-Today is ${dt.date}. When searching for recent information, news, or developments, always include the current year (${dt.year}) in your search queries to get up-to-date results. Prioritize recent sources over older ones.
+${currentDateBlock(timezone)}
 
 ## Process
 1. First, check existing knowledge using knowledge_search to see what's already known about this topic
@@ -372,11 +372,9 @@ Be thorough but efficient. Focus on the most relevant and authoritative sources.
 }
 
 function getFlightResearchPrompt(timezone?: string): string {
-  const dt = formatDateTime(timezone);
   return `You are a Flight Research Agent. Your job is to find the best flight options for the user.
 
-## Current Date
-Today is ${dt.date} (${dt.year}).
+${currentDateBlock(timezone)}
 
 ## Process
 1. Search for flights using web_search with specific queries like "flights [origin] to [destination] [dates] site:google.com/flights" or "cheap flights [route] [month year]"
@@ -494,11 +492,9 @@ You have limited searches and page reads. Be efficient — focus on the most use
 }
 
 function getStockResearchPrompt(timezone?: string): string {
-  const dt = formatDateTime(timezone);
   return `You are a Stock Research Agent. Your job is to analyze a stock and produce an investment thesis.
 
-## Current Date
-Today is ${dt.date} (${dt.year}).
+${currentDateBlock(timezone)}
 
 ## Process
 1. Search for the stock's current price, key metrics, and recent news
@@ -651,11 +647,9 @@ You have limited searches and page reads. Prioritize authoritative financial sou
 }
 
 function getCryptoResearchPrompt(timezone?: string): string {
-  const dt = formatDateTime(timezone);
   return `You are a Crypto Research Agent. Your job is to analyze a cryptocurrency or blockchain project and produce a research report.
 
-## Current Date
-Today is ${dt.date} (${dt.year}).
+${currentDateBlock(timezone)}
 
 ## Process
 1. Search for the token's current price, market cap, volume, and key on-chain metrics
@@ -800,11 +794,9 @@ You have limited searches and page reads. Prioritize authoritative crypto data s
 }
 
 function getNewsResearchPrompt(timezone?: string): string {
-  const dt = formatDateTime(timezone);
   return `You are a News Research Agent. Your job is to research a news topic and produce a comprehensive briefing.
 
-## Current Date
-Today is ${dt.date} (${dt.year}).
+${currentDateBlock(timezone)}
 
 ## Process
 1. Search for the latest news coverage on the topic
@@ -916,11 +908,9 @@ You have limited searches and page reads. Focus on authoritative news sources an
 }
 
 function getComparisonResearchPrompt(timezone?: string): string {
-  const dt = formatDateTime(timezone);
   return `You are a Comparison Research Agent. Your job is to compare multiple entities (products, services, technologies, etc.) and produce a structured comparison.
 
-## Current Date
-Today is ${dt.date} (${dt.year}).
+${currentDateBlock(timezone)}
 
 ## Process
 1. Identify the entities being compared and the key comparison dimensions

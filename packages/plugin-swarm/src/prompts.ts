@@ -1,14 +1,11 @@
-import { formatDateTime } from "@personal-ai/core";
+import { currentDateBlock } from "@personal-ai/core";
 
 export function getPlannerPrompt(resultType?: string, timezone?: string): string {
-  const dt = formatDateTime(timezone);
-
   const domainGuidance = getDomainGuidance(resultType);
 
   return `You are a Task Planner. Your job is to decompose a complex goal into 2-5 independent subtasks that can be executed in parallel by specialized sub-agents.
 
-## Current Date
-Today is ${dt.date} (${dt.year}).
+${currentDateBlock(timezone)}
 
 ## Available Roles
 - **researcher** — Searches the web, reads pages, gathers information. Tools: web_search, read_page, knowledge_search, browse_navigate, browse_text, browse_snapshot, browse_action.
@@ -93,12 +90,9 @@ Prefer these roles over generic ones for news-related goals.
 }
 
 export function getResearcherPrompt(timezone?: string): string {
-  const dt = formatDateTime(timezone);
-
   return `You are a Research Sub-Agent in a swarm. Your job is to research a specific subtask and share findings via the blackboard.
 
-## Current Date
-Today is ${dt.date} (${dt.year}). Include the year in search queries for recent topics.
+${currentDateBlock(timezone)}
 
 ## Process
 1. Check existing knowledge with knowledge_search
@@ -115,12 +109,9 @@ Today is ${dt.date} (${dt.year}). Include the year in search queries for recent 
 }
 
 export function getCoderPrompt(timezone?: string): string {
-  const dt = formatDateTime(timezone);
-
   return `You are a Coder Sub-Agent in a swarm. Your job is to write and execute code to analyze data, generate charts, or perform calculations.
 
-## Current Date
-Today is ${dt.date} (${dt.year}).
+${currentDateBlock(timezone)}
 
 ## Process
 1. Check the blackboard for data from other agents
@@ -139,12 +130,9 @@ Today is ${dt.date} (${dt.year}).
 }
 
 export function getAnalystPrompt(timezone?: string): string {
-  const dt = formatDateTime(timezone);
-
   return `You are an Analyst Sub-Agent in a swarm. Your job is to analyze information, identify patterns, and produce insights.
 
-## Current Date
-Today is ${dt.date} (${dt.year}). Include the year in search queries for recent topics.
+${currentDateBlock(timezone)}
 
 ## Process
 1. Check the blackboard for findings from other agents
@@ -160,12 +148,9 @@ Today is ${dt.date} (${dt.year}). Include the year in search queries for recent 
 }
 
 export function getFlightResearcherPrompt(timezone?: string): string {
-  const dt = formatDateTime(timezone);
-
   return `You are a Flight Research Sub-Agent in a swarm. You specialize in finding flight options, routes, schedules, and airline information.
 
-## Current Date
-Today is ${dt.date} (${dt.year}). Always include dates and the current year in search queries.
+${currentDateBlock(timezone)}
 
 ## Process
 1. Check existing knowledge with knowledge_search for any saved travel preferences
@@ -189,12 +174,9 @@ Today is ${dt.date} (${dt.year}). Always include dates and the current year in s
 }
 
 export function getStockResearcherPrompt(timezone?: string): string {
-  const dt = formatDateTime(timezone);
-
   return `You are a Stock Research Sub-Agent in a swarm. You specialize in equity research — company fundamentals, financials, earnings, and market analysis.
 
-## Current Date
-Today is ${dt.date} (${dt.year}). Always include the current year in search queries for recent data.
+${currentDateBlock(timezone)}
 
 ## Process
 1. Check existing knowledge with knowledge_search for any prior research on this company/sector
@@ -219,12 +201,9 @@ Today is ${dt.date} (${dt.year}). Always include the current year in search quer
 }
 
 export function getCryptoResearcherPrompt(timezone?: string): string {
-  const dt = formatDateTime(timezone);
-
   return `You are a Crypto Research Sub-Agent in a swarm. You specialize in cryptocurrency and blockchain research — token fundamentals, on-chain metrics, protocol analysis, and market sentiment.
 
-## Current Date
-Today is ${dt.date} (${dt.year}). Always include the current year in search queries for recent data.
+${currentDateBlock(timezone)}
 
 ## Process
 1. Check existing knowledge with knowledge_search for any prior crypto research
@@ -249,14 +228,11 @@ Today is ${dt.date} (${dt.year}). Always include the current year in search quer
 }
 
 export function getSynthesizerPrompt(resultType?: string, timezone?: string): string {
-  const dt = formatDateTime(timezone);
-
   const structuredBlock = getStructuredOutputGuidance(resultType);
 
   return `You are a Synthesis Agent. Your job is to read all sub-agent results and blackboard entries, then produce a unified, well-structured report.
 
-## Current Date
-Today is ${dt.date} (${dt.year}).
+${currentDateBlock(timezone)}
 
 ## Input
 You will receive:

@@ -12,6 +12,8 @@ export interface FormattedDateTime {
   full: string;
   /** e.g. 2026 */
   year: number;
+  /** e.g. "Asia/Kolkata" or "system default" */
+  timezone: string;
 }
 
 /**
@@ -61,5 +63,17 @@ export function formatDateTime(timezone?: string, now?: Date): FormattedDateTime
   // Extract year in the configured timezone
   const year = Number(d.toLocaleDateString("en-US", { ...opts, year: "numeric" }));
 
-  return { date, time, full: `${date}, ${time}`, year };
+  return { date, time, full: `${date}, ${time}`, year, timezone: timezone ?? "system default" };
+}
+
+/**
+ * Build a standard "Current Date" block for system prompts.
+ * Makes date, year, and timezone unmistakably clear to the LLM.
+ */
+export function currentDateBlock(timezone?: string, now?: Date): string {
+  const dt = formatDateTime(timezone, now);
+  const tz = timezone ? ` (${timezone})` : "";
+  return `## Current Date & Time
+Today is **${dt.date}**. The current year is **${dt.year}**. Time: ${dt.time}${tz}.
+IMPORTANT: The current year is ${dt.year}, NOT ${dt.year - 1} or earlier. When the user asks about "recent", "current", or "latest" information, use ${dt.year} as the current year and prefer sources from ${dt.year - 1}–${dt.year}. However, if the user asks about historical data or a specific time period, search for that period instead.`;
 }

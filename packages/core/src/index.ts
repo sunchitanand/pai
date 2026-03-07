@@ -84,7 +84,7 @@ export { remember } from "./memory/index.js";
 export type { Belief, Episode, BeliefChange, MemoryStats, MemoryExport, MemoryExportV1, MemoryExportV2, SimilarBelief, ReflectionResult, UnifiedRetrievalResult, ConsolidationResult } from "./memory/index.js";
 
 // Timezone
-export { formatDateTime } from "./timezone.js";
+export { formatDateTime, currentDateBlock } from "./timezone.js";
 export type { FormattedDateTime } from "./timezone.js";
 export { normalizeTimestamp, parseTimestamp } from "./timezone.js";
 
