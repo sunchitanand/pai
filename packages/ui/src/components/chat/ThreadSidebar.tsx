@@ -81,8 +81,8 @@ export function ThreadSidebar({
   isOpen,
   onToggle,
 }: ThreadSidebarProps) {
-  const timezone = useAppTimezone();
   const { data: threads = [], isLoading: threadsLoading } = useThreads();
+  const timezone = useAppTimezone();
   const deleteThreadMut = useDeleteThread();
   const renameThreadMut = useRenameThread();
   const clearAllMut = useClearAllThreads();
@@ -90,7 +90,18 @@ export function ThreadSidebar({
   const [renamingThreadId, setRenamingThreadId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+  const [sidebarWidth, setSidebarWidth] = useState(224);
   const renameInputRef = useRef<HTMLInputElement>(null);
+
+  const onDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = sidebarWidth;
+    const onMove = (ev: MouseEvent) => setSidebarWidth(Math.max(160, Math.min(400, startW + ev.clientX - startX)));
+    const onUp = () => { document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }, [sidebarWidth]);
 
   useEffect(() => {
     if (renamingThreadId) {
@@ -189,14 +200,14 @@ export function ThreadSidebar({
             if (renamingThreadId !== thread.id) onSelectThread(thread.id);
           }}
           className={cn(
-            "group flex cursor-pointer items-center justify-between border-b border-border/50 py-2.5 pr-3 transition-colors",
+            "group flex cursor-pointer items-center justify-between border-b border-border/30 py-1.5 pr-2 transition-colors",
             thread.id === activeThreadId
               ? "bg-primary/10 text-foreground"
               : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
           )}
-          style={{ paddingLeft: 12 + depth * 16 }}
+          style={{ paddingLeft: 10 + depth * 14 }}
         >
-          <div className="min-w-0 flex-1 flex items-center gap-1.5">
+          <div className="min-w-0 flex-1 flex items-center gap-1">
             {/* Expand/collapse toggle */}
             {hasChildren ? (
               <button
@@ -237,21 +248,14 @@ export function ThreadSidebar({
                 </div>
               ) : (
                 <>
-                  <div className="truncate text-xs font-medium">{thread.title}</div>
-                  <div className="mt-0.5 flex items-center gap-1.5 text-[10px] text-muted-foreground/70">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="shrink-0 text-[10px] text-muted-foreground/50">{formatWithTimezone(parseApiDate(thread.updatedAt), { month: "short", day: "numeric" }, timezone)}</span>
+                    <span className="truncate text-xs font-medium">{thread.title}</span>
                     {thread.messageCount > 0 && (
-                      <Badge variant="secondary" className="h-4 px-1 text-[9px]">
+                      <Badge variant="secondary" className="h-4 shrink-0 px-1 text-[9px]">
                         {thread.messageCount}
                       </Badge>
                     )}
-                    {hasChildren && (
-                      <Badge variant="outline" className="h-4 px-1 text-[9px]">
-                        {children.length} branch{children.length !== 1 ? "es" : ""}
-                      </Badge>
-                    )}
-                    <span>
-                      {formatWithTimezone(parseApiDate(thread.updatedAt), { month: "short", day: "numeric" }, timezone)}
-                    </span>
                   </div>
                 </>
               )}
@@ -300,7 +304,7 @@ export function ThreadSidebar({
 
   const sidebarContent = (
     <>
-      <div className="flex items-center justify-between gap-2 px-3 py-3 pl-4">
+      <div className="flex items-center justify-between gap-2 px-3 py-2 pl-4">
         <span className="flex min-w-0 items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           <span className="shrink-0">Threads</span>
           <InfoBubble text="Each thread is a separate conversation. Branch a thread to explore a different direction while keeping the original." side="right" />
@@ -375,8 +379,9 @@ export function ThreadSidebar({
   if (!isOpen) return null;
 
   return (
-    <aside className="relative z-30 flex w-56 flex-col overflow-hidden border-r border-border bg-background">
+    <aside className="relative z-30 flex flex-col overflow-hidden border-r border-border bg-background" style={{ width: sidebarWidth }}>
       {sidebarContent}
+      <div onMouseDown={onDragStart} className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize hover:bg-primary/20 active:bg-primary/30 transition-colors" />
     </aside>
   );
 }
