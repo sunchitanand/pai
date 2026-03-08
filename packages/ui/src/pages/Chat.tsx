@@ -59,6 +59,7 @@ export default function Chat() {
         setActiveThreadId={setActiveThreadId}
         activeThreadIdRef={activeThreadIdRef}
         activeThread={activeThread}
+        threads={threads}
         selectedAgent={selectedAgent}
         setSelectedAgent={setSelectedAgent}
         showMemories={showMemories}
@@ -83,6 +84,7 @@ function ChatInner({
   setActiveThreadId,
   activeThreadIdRef,
   activeThread,
+  threads,
   selectedAgent,
   setSelectedAgent,
   showMemories,
@@ -98,6 +100,7 @@ function ChatInner({
   setActiveThreadId: (id: string | null) => void;
   activeThreadIdRef: React.MutableRefObject<string | null>;
   activeThread: Thread | undefined;
+  threads: Thread[];
   selectedAgent: string | undefined;
   setSelectedAgent: (agent: string | undefined) => void;
   showMemories: boolean;
@@ -226,6 +229,27 @@ function ChatInner({
     if (isMobile) setThreadSidebarOpen(false);
   }, [isStreaming, selectedAgent, isMobile, setActiveThreadId, activeThreadIdRef, setThreadSidebarOpen, queryClient, handleRef]);
 
+  // Listen for branch events from assistant message action bar
+  useEffect(() => {
+    const handler = async (e: Event) => {
+      const { messageId, sequence } = (e as CustomEvent).detail;
+      if (!activeThreadId) return;
+      const title = activeThread ? `Branch of ${activeThread.title}` : "New branch";
+      const thread = await createThread(title, selectedAgent, activeThreadId, messageId, sequence);
+      queryClient.invalidateQueries({ queryKey: threadKeys.all });
+      // Load the branched thread with its copied messages
+      const history = await getChatHistory(thread.id);
+      const mapHistory = (h: { role: string; content: string }[]) =>
+        h.map((m, i) => ({ id: `hist-${thread.id}-${i}`, role: m.role as "user" | "assistant", parts: [{ type: "text" as const, text: m.content }], createdAt: new Date() }));
+      setActiveThreadId(thread.id);
+      activeThreadIdRef.current = thread.id;
+      handleRef.current?.setChatMessages([]);
+      handleRef.current?.setChatMessages(mapHistory(history));
+    };
+    window.addEventListener("pai:branch-thread", handler);
+    return () => window.removeEventListener("pai:branch-thread", handler);
+  }, [activeThreadId, activeThread, selectedAgent, setActiveThreadId, activeThreadIdRef, queryClient, handleRef]);
+
   const handleThreadDeleted = useCallback(
     (threadId: string) => {
       if (activeThreadId === threadId) {
@@ -260,6 +284,22 @@ function ChatInner({
         activeThreadId={activeThreadId}
         onSelectThread={switchThread}
         onNewThread={handleNewThread}
+        onBranchThread={async (parentId) => {
+          const parent = threads?.find(t => t.id === parentId);
+          const title = parent ? `Branch of ${parent.title}` : "New branch";
+          const thread = await createThread(title, selectedAgent, parentId);
+          queryClient.invalidateQueries({ queryKey: threadKeys.all });
+          // Load copied messages into the UI
+          const history = await getChatHistory(thread.id);
+          const mapped = history.map((m: { role: string; content: string }, i: number) => ({
+            id: `hist-${thread.id}-${i}`, role: m.role as "user" | "assistant",
+            parts: [{ type: "text" as const, text: m.content }], createdAt: new Date(),
+          }));
+          setActiveThreadId(thread.id);
+          activeThreadIdRef.current = thread.id;
+          handleRef.current?.setChatMessages([]);
+          handleRef.current?.setChatMessages(mapped);
+        }}
         onThreadDeleted={handleThreadDeleted}
         onAllThreadsCleared={handleAllThreadsCleared}
         isStreaming={isStreaming ?? false}
@@ -281,6 +321,7 @@ function ChatInner({
           onToggleMemories={() => setShowMemories(!showMemories)}
           memoryCount={memoryCount}
           onClear={handleClear}
+          onSelectThread={switchThread}
         />
 
         {/* assistant-ui Thread handles messages, composer, auto-scroll, tool rendering */}

@@ -97,6 +97,16 @@ export const threadMigrations: Migration[] = [
       ALTER TABLE thread_messages ADD COLUMN usage_json TEXT;
     `,
   },
+  {
+    version: 5,
+    up: `
+      ALTER TABLE threads ADD COLUMN parent_id TEXT REFERENCES threads(id) ON DELETE SET NULL;
+      ALTER TABLE threads ADD COLUMN fork_message_id TEXT;
+      ALTER TABLE threads ADD COLUMN fork_message_sequence INTEGER;
+      ALTER TABLE threads ADD COLUMN depth INTEGER NOT NULL DEFAULT 0;
+      CREATE INDEX IF NOT EXISTS idx_threads_parent ON threads(parent_id);
+    `,
+  },
 ];
 
 export const DEFAULT_USER_ID = "user-local";
@@ -110,6 +120,11 @@ export interface ThreadRow {
   updated_at: string;
   message_count: number;
   last_message?: string | null;
+  parent_id: string | null;
+  fork_message_id: string | null;
+  fork_message_sequence: number | null;
+  depth: number;
+  child_count?: number;
 }
 
 export interface ThreadMessageRow {
@@ -173,28 +188,74 @@ export function getThread(storage: Storage, id: string): ThreadRow | null {
 export function listThreads(storage: Storage, userId: string = DEFAULT_USER_ID): ThreadRow[] {
   return storage.query<ThreadRow>(
     `SELECT t.id, t.title, t.agent_name, t.user_id, t.created_at, t.updated_at, t.message_count,
-       (SELECT substr(m.content, 1, 1000) FROM thread_messages m WHERE m.thread_id = t.id AND m.role = 'assistant' ORDER BY m.sequence DESC LIMIT 1) AS last_message
+       t.parent_id, t.fork_message_id, t.fork_message_sequence, COALESCE(t.depth, 0) AS depth,
+       (SELECT substr(m.content, 1, 1000) FROM thread_messages m WHERE m.thread_id = t.id AND m.role = 'assistant' ORDER BY m.sequence DESC LIMIT 1) AS last_message,
+       (SELECT COUNT(*) FROM threads c WHERE c.parent_id = t.id) AS child_count
      FROM threads t WHERE t.user_id = ? ORDER BY t.updated_at DESC`,
     [userId],
   );
 }
 
-export function createThread(storage: Storage, opts: { title?: string; agentName?: string; userId?: string } = {}): ThreadRow {
+export function createThread(storage: Storage, opts: { title?: string; agentName?: string; userId?: string; parentId?: string; forkMessageId?: string; forkSequence?: number } = {}): ThreadRow {
   const id = `thread-${randomUUID()}`;
   const now = new Date().toISOString();
   const title = opts.title ?? "New conversation";
   const agentName = opts.agentName ?? null;
   const userId = opts.userId ?? DEFAULT_USER_ID;
+  const parentId = opts.parentId ?? null;
+  const forkMessageId = opts.forkMessageId ?? null;
+
+  // Determine depth and fork sequence from parent
+  let depth = 0;
+  let forkMessageSequence: number | null = null;
+  if (parentId) {
+    const parent = getThread(storage, parentId);
+    if (parent) depth = Math.min((parent.depth ?? 0) + 1, 5);
+    if (opts.forkSequence) {
+      forkMessageSequence = opts.forkSequence;
+    } else if (forkMessageId) {
+      const msg = storage.query<{ sequence: number }>(
+        "SELECT sequence FROM thread_messages WHERE id = ? AND thread_id = ?",
+        [forkMessageId, parentId],
+      );
+      if (msg[0]) forkMessageSequence = msg[0].sequence;
+    }
+    // If no specific fork point, copy all messages
+    if (forkMessageSequence == null) {
+      const last = storage.query<{ sequence: number }>(
+        "SELECT MAX(sequence) AS sequence FROM thread_messages WHERE thread_id = ?",
+        [parentId],
+      );
+      if (last[0]?.sequence) forkMessageSequence = last[0].sequence;
+    }
+  }
 
   const tx = storage.db.transaction(() => {
     storage.run(
-      "INSERT INTO threads (id, title, agent_name, user_id, created_at, updated_at, message_count) VALUES (?, ?, ?, ?, ?, ?, 0)",
-      [id, title, agentName, userId, now, now],
+      "INSERT INTO threads (id, title, agent_name, user_id, created_at, updated_at, message_count, parent_id, fork_message_id, fork_message_sequence, depth) VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)",
+      [id, title, agentName, userId, now, now, parentId, forkMessageId, forkMessageSequence, depth],
     );
+
+    // Copy messages from parent up to fork point
+    if (parentId && forkMessageSequence != null) {
+      const parentMessages = storage.query<{ role: string; content: string; parts_json: string | null; created_at: string; sequence: number; usage_json: string | null }>(
+        "SELECT role, content, parts_json, created_at, sequence, usage_json FROM thread_messages WHERE thread_id = ? AND sequence <= ? ORDER BY sequence",
+        [parentId, forkMessageSequence],
+      );
+      for (const m of parentMessages) {
+        const msgId = randomUUID().replace(/-/g, "").slice(0, 32);
+        storage.run(
+          "INSERT INTO thread_messages (id, thread_id, role, content, parts_json, created_at, sequence, usage_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+          [msgId, id, m.role, m.content, m.parts_json, m.created_at, m.sequence, m.usage_json],
+        );
+      }
+      // Update message count
+      storage.run("UPDATE threads SET message_count = ? WHERE id = ?", [parentMessages.length, id]);
+    }
   });
   tx();
 
-  return { id, title, agent_name: agentName, user_id: userId, created_at: now, updated_at: now, message_count: 0 };
+  return { id, title, agent_name: agentName, user_id: userId, created_at: now, updated_at: now, message_count: 0, parent_id: parentId, fork_message_id: forkMessageId, fork_message_sequence: forkMessageSequence, depth };
 }
 
 export function ensureThread(storage: Storage, opts: EnsureThreadOptions = {}): { thread: ThreadRow; created: boolean } {
@@ -204,6 +265,37 @@ export function ensureThread(storage: Storage, opts: EnsureThreadOptions = {}): 
   }
   const thread = createThread(storage, { title: opts.title, agentName: opts.agentName, userId: opts.userId });
   return { thread, created: true };
+}
+
+/** Walk up the parent chain from a thread to the root */
+export function getAncestors(storage: Storage, threadId: string): ThreadRow[] {
+  const ancestors: ThreadRow[] = [];
+  let current = getThread(storage, threadId);
+  while (current?.parent_id) {
+    const parent = getThread(storage, current.parent_id);
+    if (!parent) break;
+    ancestors.unshift(parent);
+    current = parent;
+  }
+  return ancestors;
+}
+
+/** Get direct children of a thread */
+export function getChildren(storage: Storage, threadId: string): ThreadRow[] {
+  return storage.query<ThreadRow>(
+    "SELECT *, (SELECT COUNT(*) FROM threads c2 WHERE c2.parent_id = threads.id) AS child_count FROM threads WHERE parent_id = ? ORDER BY created_at",
+    [threadId],
+  );
+}
+
+/** Get messages from parent chain up to fork point (for context inheritance) */
+export function getInheritedContext(storage: Storage, threadId: string): ThreadMessageRow[] {
+  const thread = getThread(storage, threadId);
+  if (!thread?.parent_id || thread.fork_message_sequence == null) return [];
+  return storage.query<ThreadMessageRow>(
+    "SELECT * FROM thread_messages WHERE thread_id = ? AND sequence <= ? ORDER BY sequence",
+    [thread.parent_id, thread.fork_message_sequence],
+  );
 }
 
 export function listMessages(storage: Storage, threadId: string, opts: ListMessagesOptions = {}): ThreadMessageRow[] {

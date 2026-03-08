@@ -42,6 +42,17 @@ export function useCreateThread() {
   });
 }
 
+export function useBranchThread() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { parentId: string; forkMessageId: string; title?: string }) =>
+      createThread(input.title, undefined, input.parentId, input.forkMessageId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: threadKeys.all });
+    },
+  });
+}
+
 export function useDeleteThread() {
   const queryClient = useQueryClient();
   return useMutation({

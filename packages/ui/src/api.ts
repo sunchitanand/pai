@@ -254,10 +254,10 @@ export function getThreads(): Promise<Thread[]> {
   return request<Thread[]>("/threads");
 }
 
-export function createThread(title?: string, agentName?: string): Promise<Thread> {
+export function createThread(title?: string, agentName?: string, parentId?: string, forkMessageId?: string, forkSequence?: number): Promise<Thread> {
   return request<Thread>("/threads", {
     method: "POST",
-    body: JSON.stringify({ title, agentName }),
+    body: JSON.stringify({ title, agentName, parentId, forkMessageId, forkSequence }),
   });
 }
 

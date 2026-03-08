@@ -18,6 +18,7 @@ import {
   ErrorPrimitive,
   MessagePrimitive,
   ThreadPrimitive,
+  useMessage,
 } from "@assistant-ui/react";
 import {
   ArrowDownIcon,
@@ -27,6 +28,7 @@ import {
   ChevronRightIcon,
   CopyIcon,
   DownloadIcon,
+  GitBranchIcon,
   MoreHorizontalIcon,
   PencilIcon,
   RefreshCwIcon,
@@ -274,6 +276,30 @@ const AssistantMessage: FC = () => {
   );
 };
 
+const BranchFromHereItem: FC = () => {
+  const messageId = useMessage((m) => m.id);
+  return (
+    <ActionBarMorePrimitive.Item
+      className="aui-action-bar-more-item flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground"
+      onClick={() => {
+        // Get the message index from the DOM — assistant-ui doesn't expose DB IDs
+        const allMessages = document.querySelectorAll("[data-role='assistant'], [data-role='user']");
+        const thisMessage = document.querySelector(`[data-role='assistant']:has(.aui-assistant-action-bar-root [data-state='open'])`)
+          ?? document.querySelector("[data-role='assistant']:hover");
+        let sequence = allMessages.length; // fallback: all messages
+        if (thisMessage) {
+          const idx = Array.from(allMessages).indexOf(thisMessage);
+          if (idx >= 0) sequence = idx + 1;
+        }
+        window.dispatchEvent(new CustomEvent("pai:branch-thread", { detail: { messageId, sequence } }));
+      }}
+    >
+      <GitBranchIcon className="size-4" />
+      Branch from here
+    </ActionBarMorePrimitive.Item>
+  );
+};
+
 const AssistantActionBar: FC = () => {
   return (
     <ActionBarPrimitive.Root
@@ -316,6 +342,7 @@ const AssistantActionBar: FC = () => {
               Export as Markdown
             </ActionBarMorePrimitive.Item>
           </ActionBarPrimitive.ExportMarkdown>
+          <BranchFromHereItem />
         </ActionBarMorePrimitive.Content>
       </ActionBarMorePrimitive.Root>
     </ActionBarPrimitive.Root>

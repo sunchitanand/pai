@@ -141,6 +141,10 @@ export interface Thread {
   updatedAt: string;
   messageCount: number;
   lastMessage?: string;
+  parentId?: string | null;
+  forkMessageId?: string | null;
+  depth?: number;
+  childCount?: number;
 }
 
 export interface ThreadMessage {
