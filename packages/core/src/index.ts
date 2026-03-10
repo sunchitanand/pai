@@ -71,6 +71,9 @@ export {
   clearAllThreads,
   getThread,
   withThreadLock,
+  getAncestors,
+  getChildren,
+  getInheritedContext,
 } from "./threads.js";
 export type { ThreadRow, ThreadMessageRow, ThreadMessageInput, EnsureThreadOptions, ListMessagesOptions, AppendMessagesOptions } from "./threads.js";
 

@@ -15,6 +15,8 @@ import {
   clearAllThreads,
   withThreadLock,
   getThread,
+  getAncestors,
+  getChildren,
   getOwner,
   getCorePreferences,
   currentDateBlock,
@@ -200,6 +202,10 @@ function mapThread(row: ThreadRow) {
     updatedAt: row.updated_at,
     messageCount: row.message_count,
     lastMessage: row.last_message ?? undefined,
+    parentId: row.parent_id ?? null,
+    forkMessageId: row.fork_message_id ?? null,
+    depth: row.depth ?? 0,
+    childCount: row.child_count ?? 0,
   };
 }
 
@@ -264,18 +270,38 @@ export function registerAgentRoutes(app: FastifyInstance, { ctx, agents }: Serve
     return listThreads(ctx.storage).map(mapThread);
   });
 
-  // Create a new thread
+  // Create a new thread (optionally forked from a parent)
   const createThreadSchema = z.object({
     title: z.string().max(200).optional(),
     agentName: z.string().max(100).optional(),
+    parentId: z.string().optional(),
+    forkMessageId: z.string().optional(),
+    forkSequence: z.number().int().positive().optional(),
   });
-  app.post<{ Body: { title?: string; agentName?: string } }>("/api/threads", async (request) => {
+  app.post<{ Body: { title?: string; agentName?: string; parentId?: string; forkMessageId?: string; forkSequence?: number } }>("/api/threads", async (request) => {
     const body = validate(createThreadSchema, request.body ?? {});
     const thread = createThread(ctx.storage, {
       title: body.title,
       agentName: body.agentName,
+      parentId: body.parentId,
+      forkMessageId: body.forkMessageId,
+      forkSequence: body.forkSequence,
     });
     return mapThread(thread);
+  });
+
+  // Get thread ancestors (breadcrumb path)
+  app.get<{ Params: { id: string } }>("/api/threads/:id/ancestors", async (request, reply) => {
+    const thread = getThread(ctx.storage, request.params.id);
+    if (!thread) return reply.status(404).send({ error: "Thread not found" });
+    return getAncestors(ctx.storage, request.params.id).map(mapThread);
+  });
+
+  // Get thread children
+  app.get<{ Params: { id: string } }>("/api/threads/:id/children", async (request, reply) => {
+    const thread = getThread(ctx.storage, request.params.id);
+    if (!thread) return reply.status(404).send({ error: "Thread not found" });
+    return getChildren(ctx.storage, request.params.id).map(mapThread);
   });
 
   // Delete a thread
@@ -490,6 +516,22 @@ export function registerAgentRoutes(app: FastifyInstance, { ctx, agents }: Serve
             loadedMessages: history.length,
             estimatedTokens: historyTokens,
           });
+
+          // Inject inherited context from parent thread (for forked threads)
+          const currentThread = getThread(ctx.storage, sid);
+          if (currentThread?.parent_id && currentThread.fork_message_sequence != null) {
+            const parentMsgs = listMessages(ctx.storage, currentThread.parent_id, { limit: currentThread.fork_message_sequence });
+            if (parentMsgs.length > 0) {
+              const parentContext = parentMsgs
+                .slice(-10) // last 10 messages before fork
+                .map(m => `${m.role}: ${m.content.slice(0, 500)}`)
+                .join("\n");
+              history.unshift({
+                role: "system" as ChatMessage["role"],
+                content: `[Prior conversation context from parent thread — this thread was forked from there]\n${parentContext}`,
+              });
+            }
+          }
 
           const agentCtx: AgentContext = {
             ...ctx,
