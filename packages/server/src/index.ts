@@ -20,7 +20,14 @@ import { registerAgentRoutes } from "./routes/agents.js";
 import { registerConfigRoutes } from "./routes/config.js";
 import { registerKnowledgeRoutes } from "./routes/knowledge.js";
 import { registerTaskRoutes } from "./routes/tasks.js";
-import { listSchedules, createSchedule, deleteSchedule, pauseSchedule, resumeSchedule } from "@personal-ai/plugin-schedules";
+import { registerProgramRoutes } from "./routes/programs.js";
+import {
+  listSchedules,
+  createSchedule,
+  deleteSchedule,
+  pauseSchedule,
+  resumeSchedule,
+} from "@personal-ai/plugin-schedules";
 import { z } from "zod";
 import { validate } from "./validate.js";
 import { recoverStaleResearchJobs, cancelAllRunningResearchJobs } from "@personal-ai/plugin-research";
@@ -410,6 +417,7 @@ export async function createServer(options?: { port?: number; host?: string }) {
   registerConfigRoutes(app, serverCtx);
   registerKnowledgeRoutes(app, serverCtx);
   registerTaskRoutes(app, serverCtx);
+  registerProgramRoutes(app, serverCtx);
   registerInboxRoutes(app, serverCtx);
   registerJobRoutes(app, serverCtx);
   registerArtifactRoutes(app, serverCtx);
