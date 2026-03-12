@@ -15,6 +15,7 @@ import { registerArtifactRoutes } from "../src/routes/artifacts.js";
 import { registerObservabilityRoutes } from "../src/routes/observability.js";
 import type { ServerContext } from "../src/index.js";
 import jwt from "jsonwebtoken";
+import { assistantPlugin } from "../../plugin-assistant/src/index.js";
 
 // ---------------------------------------------------------------------------
 // Artifact mock functions (declared before vi.mock hoisting)
@@ -47,6 +48,8 @@ vi.mock("@personal-ai/core", async (importOriginal) => {
     searchBeliefs: vi.fn(),
     semanticSearch: vi.fn(),
     forgetBelief: vi.fn(),
+    correctBelief: vi.fn(),
+    updateBeliefContent: vi.fn(),
     memoryStats: vi.fn(),
     remember: vi.fn(),
     getMemoryContext: vi.fn().mockResolvedValue(""),
@@ -313,7 +316,10 @@ function setupDefaultAIMocks(responseText = "Hello from AI"): void {
             controller.enqueue(encoder.encode(body));
             controller.close();
           } catch (e) {
-            if (onError) onError(e);
+            const errorText = onError?.(e);
+            if (errorText) {
+              controller.enqueue(encoder.encode(String(errorText)));
+            }
             controller.close();
           }
         },
@@ -327,6 +333,8 @@ import {
   searchBeliefs,
   semanticSearch,
   forgetBelief,
+  correctBelief,
+  updateBeliefContent,
   memoryStats,
   remember,
 } from "@personal-ai/core";
@@ -690,6 +698,61 @@ describe("memory routes", () => {
     expect(body.error).toBe("Belief not found");
   });
 
+  it("POST /api/beliefs/:id/correct supersedes a belief", async () => {
+    vi.mocked(correctBelief).mockResolvedValue({
+      invalidatedBelief: {
+        ...MOCK_BELIEF,
+        status: "invalidated",
+        superseded_by: "belief_new789",
+      },
+      replacementBelief: {
+        ...MOCK_BELIEF,
+        id: "belief_new789",
+        statement: "User prefers Vitest for this repo",
+        supersedes: MOCK_BELIEF.id,
+      },
+      correctionEpisode: {
+        id: "ep_123",
+        timestamp: "2026-03-11T12:00:00Z",
+        context: "User corrected belief",
+        action: "Corrected belief: User prefers Vitest over Jest",
+        outcome: "User prefers Vitest for this repo",
+        tags_json: "[\"belief-correction\",\"memory\"]",
+      },
+    });
+
+    const res = await app.inject({
+      method: "POST",
+      url: `/api/beliefs/${MOCK_BELIEF.id}/correct`,
+      payload: { statement: "User prefers Vitest for this repo" },
+    });
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.payload);
+    expect(body.invalidatedBelief.status).toBe("invalidated");
+    expect(body.replacementBelief.id).toBe("belief_new789");
+    expect(correctBelief).toHaveBeenCalledWith(
+      serverCtx.ctx.storage,
+      serverCtx.ctx.llm,
+      MOCK_BELIEF.id,
+      { statement: "User prefers Vitest for this repo", note: undefined },
+    );
+  });
+
+  it("POST /api/beliefs/:id/correct returns 400 for unchanged statements", async () => {
+    vi.mocked(correctBelief).mockRejectedValue(new Error("Correction must change the belief statement"));
+
+    const res = await app.inject({
+      method: "POST",
+      url: `/api/beliefs/${MOCK_BELIEF.id}/correct`,
+      payload: { statement: MOCK_BELIEF.statement },
+    });
+
+    expect(res.statusCode).toBe(400);
+    const body = JSON.parse(res.payload);
+    expect(body.error).toContain("must change");
+  });
+
   // -- GET /api/search -----------------------------------------------------
 
   it("GET /api/search?q=test returns semantic search results", async () => {
@@ -1000,6 +1063,105 @@ describe("agent routes", () => {
     expect(threads.some((t) => t.id === headerId)).toBe(true);
   });
 
+  it("POST /api/chat can create a Program through the assistant flow and preserve thread continuity", async () => {
+    serverCtx.agents[0] = {
+      ...assistantPlugin,
+      agent: {
+        ...assistantPlugin.agent!,
+        afterResponse: vi.fn().mockResolvedValue(undefined),
+      },
+    } as typeof serverCtx.agents[number];
+
+    const createRes = await app.inject({
+      method: "POST",
+      url: "/api/threads",
+      payload: { title: "Atlas watch" },
+    });
+    const thread = JSON.parse(createRes.payload) as { id: string };
+
+    mockCreateProgram.mockImplementation((_storage: unknown, input: Record<string, unknown>) => ({
+      id: "prog_123",
+      title: input.title ?? "Atlas launch readiness",
+      question: input.question ?? "Keep watching Atlas launch readiness and brief me when blockers change.",
+      family: input.family ?? "work",
+      executionMode: input.executionMode ?? "research",
+      intervalHours: input.intervalHours ?? 24,
+      chatId: input.chatId ?? null,
+      threadId: input.threadId ?? null,
+      nextRunAt: "2026-03-12T16:00:00.000Z",
+      lastRunAt: null,
+      status: "active",
+      createdAt: "2026-03-12T08:00:00.000Z",
+      preferences: input.preferences ?? [],
+      constraints: input.constraints ?? [],
+      openQuestions: input.openQuestions ?? [],
+    }));
+
+    mockStreamText.mockImplementation((opts: Record<string, unknown>) => {
+      const onFinish = opts.onFinish as ((result: { text: string; steps: unknown[] }) => void) | undefined;
+      const tools = opts.tools as Record<string, { execute?: (input: Record<string, unknown>) => Promise<unknown> }> | undefined;
+      const args = {
+        title: "Atlas launch readiness",
+        question: "Keep watching Atlas launch readiness and brief me when blockers change.",
+        family: "work",
+        execution_mode: "research",
+        interval_hours: 24,
+        preferences: ["prioritize blockers"],
+        constraints: ["security signoff required"],
+      };
+
+      return {
+        fullStream: {
+          async *[Symbol.asyncIterator]() {
+            const output = await tools?.program_create?.execute?.(args);
+            const responseText = typeof output === "string" ? output : "Program created.";
+            onFinish?.({
+              text: responseText,
+              steps: [
+                {
+                  toolCalls: [{ toolName: "program_create", args }],
+                  toolResults: [{ result: responseText }],
+                },
+              ],
+            });
+            yield { type: "text-start", id: "txt-1" };
+            yield { type: "text-delta", id: "txt-1", text: responseText };
+            yield { type: "text-end", id: "txt-1" };
+          },
+        },
+      };
+    });
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/chat",
+      payload: {
+        message: "Keep watching Atlas launch readiness and brief me when blockers change.",
+        sessionId: thread.id,
+      },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(mockCreateProgram).toHaveBeenCalledWith(
+      serverCtx.ctx.storage,
+      expect.objectContaining({
+        title: "Atlas launch readiness",
+        threadId: thread.id,
+        chatId: null,
+      }),
+    );
+
+    const messagesRes = await app.inject({
+      method: "GET",
+      url: `/api/threads/${thread.id}/messages`,
+    });
+    const messages = JSON.parse(messagesRes.payload) as Array<{ role: string; content: string }>;
+    expect(messages).toHaveLength(2);
+    expect(messages[0]?.role).toBe("user");
+    expect(messages[1]?.role).toBe("assistant");
+    expect(messages[1]?.content).toContain("Program created.");
+  });
+
   it("POST /api/chat calls createTools on agent", async () => {
     await app.inject({
       method: "POST",
@@ -1059,6 +1221,25 @@ describe("agent routes", () => {
         onError: expect.any(Function),
       }),
     );
+  });
+
+  it("POST /api/chat surfaces stream error parts instead of ending with an empty response", async () => {
+    mockStreamText.mockImplementation(() => ({
+      fullStream: {
+        async *[Symbol.asyncIterator]() {
+          yield { type: "error", error: new Error("unauthorized") };
+        },
+      },
+    }));
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/chat",
+      payload: { message: "test" },
+    });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.payload).toContain("unauthorized");
   });
 
   it("POST /api/chat selects agent by name", async () => {
@@ -1536,6 +1717,16 @@ describe("task routes", () => {
     expect(JSON.parse(res.payload)).toEqual([task1]);
   });
 
+  it("GET /api/tasks?sourceType=program&sourceId=p1 filters by linked source", async () => {
+    const task1 = { id: "t1", title: "Task 1", status: "open", priority: "medium", goal_id: null, due_date: null, created_at: "2026-01-01", completed_at: null, description: null, source_type: "program", source_id: "p1", source_label: "Program A" };
+    const task2 = { id: "t2", title: "Task 2", status: "open", priority: "medium", goal_id: null, due_date: null, created_at: "2026-01-01", completed_at: null, description: null, source_type: "briefing", source_id: "b1", source_label: "Brief B" };
+    mockListTasks.mockReturnValue([task1, task2]);
+
+    const res = await app.inject({ method: "GET", url: "/api/tasks?sourceType=program&sourceId=p1" });
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.payload)).toEqual([task1]);
+  });
+
   it("POST /api/tasks creates a task", async () => {
     const newTask = { id: "t2", title: "New Task", status: "open", priority: "high", goal_id: null, due_date: null, created_at: "2026-01-01", completed_at: null, description: null };
     mockAddTask.mockReturnValue(newTask);
@@ -1547,6 +1738,43 @@ describe("task routes", () => {
     });
     expect(res.statusCode).toBe(201);
     expect(JSON.parse(res.payload)).toEqual(newTask);
+  });
+
+  it("POST /api/tasks passes source linkage through for actions", async () => {
+    const newTask = {
+      id: "t3",
+      title: "Review blocker owners",
+      status: "open",
+      priority: "medium",
+      goal_id: null,
+      due_date: null,
+      created_at: "2026-01-01",
+      completed_at: null,
+      description: "From brief",
+      source_type: "briefing",
+      source_id: "brief-123",
+      source_label: "Daily Briefing",
+    };
+    mockAddTask.mockReturnValue(newTask);
+
+    const res = await app.inject({
+      method: "POST",
+      url: "/api/tasks",
+      payload: {
+        title: "Review blocker owners",
+        sourceType: "briefing",
+        sourceId: "brief-123",
+        sourceLabel: "Daily Briefing",
+      },
+    });
+
+    expect(res.statusCode).toBe(201);
+    expect(mockAddTask).toHaveBeenCalledWith(expect.anything(), {
+      title: "Review blocker owners",
+      sourceType: "briefing",
+      sourceId: "brief-123",
+      sourceLabel: "Daily Briefing",
+    });
   });
 
   it("POST /api/tasks returns 400 on error", async () => {
@@ -1689,7 +1917,7 @@ describe("program routes", () => {
       executionMode: "analysis",
       intervalHours: 12,
       chatId: null,
-      threadId: null,
+      threadId: "thread-123",
       lastRunAt: null,
       nextRunAt: "2026-03-11T12:00:00.000Z",
       status: "active",
@@ -1706,6 +1934,7 @@ describe("program routes", () => {
       family: "work",
       executionMode: "analysis",
       intervalHours: 12,
+      threadId: "thread-123",
       preferences: ["Lead with blockers"],
       constraints: ["Only material changes"],
       openQuestions: ["Who owns rollback verification?"],
