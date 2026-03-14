@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { createStorage, listBeliefs } from "@personal-ai/core";
+import { createStorage, listBeliefs, memoryMigrations } from "@personal-ai/core";
 import type { Storage } from "@personal-ai/core";
 import { createProgram, scheduleMigrations } from "@personal-ai/plugin-schedules";
 import {
@@ -14,6 +14,8 @@ import {
   generateBriefing,
   getResearchBriefings,
   selectBriefingBeliefs,
+  linkBriefBeliefs,
+  getBriefBeliefs,
 } from "../src/briefing.js";
 import type { BriefingSection } from "../src/briefing.js";
 import type { Belief } from "@personal-ai/core";
@@ -373,6 +375,94 @@ describe("Briefing CRUD", () => {
       expect(count).toBe(3);
       expect(listBriefings(storage)).toEqual([]);
       expect(getBriefingById(storage, "x1")).toBeNull();
+    });
+  });
+
+  describe("brief_beliefs", () => {
+    // These tests need the beliefs table to exist for FK references
+    beforeEach(() => {
+      storage.migrate("memory", memoryMigrations);
+      // Insert test beliefs
+      storage.run(
+        "INSERT INTO beliefs (id, statement, confidence, status) VALUES (?, ?, ?, ?)",
+        ["belief-1", "User prefers concise updates", 0.9, "active"],
+      );
+      storage.run(
+        "INSERT INTO beliefs (id, statement, confidence, status) VALUES (?, ?, ?, ?)",
+        ["belief-2", "Owner tracks H4 visa slots", 0.85, "active"],
+      );
+    });
+
+    it("linkBriefBeliefs persists assumption rows", () => {
+      insertBriefing("brief-link-1", { greeting: "hi" });
+      linkBriefBeliefs(storage, "brief-link-1", [
+        { beliefId: "belief-1", role: "assumption" },
+        { beliefId: "belief-2", role: "assumption" },
+      ]);
+
+      const rows = storage.query<{ brief_id: string; belief_id: string; role: string }>(
+        "SELECT brief_id, belief_id, role FROM brief_beliefs WHERE brief_id = ? ORDER BY belief_id",
+        ["brief-link-1"],
+      );
+      expect(rows).toHaveLength(2);
+      expect(rows[0]!.belief_id).toBe("belief-1");
+      expect(rows[0]!.role).toBe("assumption");
+      expect(rows[1]!.belief_id).toBe("belief-2");
+    });
+
+    it("linkBriefBeliefs ignores duplicates on retry", () => {
+      insertBriefing("brief-dup-1", { greeting: "hi" });
+      linkBriefBeliefs(storage, "brief-dup-1", [
+        { beliefId: "belief-1", role: "assumption" },
+      ]);
+      linkBriefBeliefs(storage, "brief-dup-1", [
+        { beliefId: "belief-1", role: "assumption" },
+      ]);
+
+      const rows = storage.query<{ brief_id: string }>(
+        "SELECT brief_id FROM brief_beliefs WHERE brief_id = ? AND belief_id = ?",
+        ["brief-dup-1", "belief-1"],
+      );
+      expect(rows).toHaveLength(1);
+    });
+
+    it("getBriefBeliefs returns linked belief IDs with roles", () => {
+      insertBriefing("brief-get-1", { greeting: "hi" });
+      linkBriefBeliefs(storage, "brief-get-1", [
+        { beliefId: "belief-1", role: "assumption" },
+        { beliefId: "belief-2", role: "evidence" },
+      ]);
+
+      const links = getBriefBeliefs(storage, "brief-get-1");
+      expect(links).toHaveLength(2);
+      expect(links.map((l) => l.beliefId).sort()).toEqual(["belief-1", "belief-2"]);
+      const assumption = links.find((l) => l.beliefId === "belief-1")!;
+      expect(assumption.role).toBe("assumption");
+      expect(assumption.createdAt).toBeDefined();
+      const evidence = links.find((l) => l.beliefId === "belief-2")!;
+      expect(evidence.role).toBe("evidence");
+    });
+
+    it("getBriefBeliefs returns empty array for unknown brief", () => {
+      const links = getBriefBeliefs(storage, "nonexistent-brief");
+      expect(links).toEqual([]);
+    });
+
+    it("CASCADE delete removes brief_beliefs when briefing is deleted", () => {
+      insertBriefing("brief-cascade-1", { greeting: "hi" });
+      linkBriefBeliefs(storage, "brief-cascade-1", [
+        { beliefId: "belief-1", role: "assumption" },
+      ]);
+
+      // Enable FK enforcement and delete the briefing
+      storage.run("PRAGMA foreign_keys = ON");
+      storage.run("DELETE FROM briefings WHERE id = ?", ["brief-cascade-1"]);
+
+      const rows = storage.query<{ id: string }>(
+        "SELECT id FROM brief_beliefs WHERE brief_id = ?",
+        ["brief-cascade-1"],
+      );
+      expect(rows).toHaveLength(0);
     });
   });
 });

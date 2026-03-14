@@ -168,6 +168,21 @@ export const briefingMigrations: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_briefings_source_job ON briefings(source_job_id, source_job_kind);
     `,
   },
+  {
+    version: 6,
+    up: `
+      CREATE TABLE IF NOT EXISTS brief_beliefs (
+        id TEXT PRIMARY KEY,
+        brief_id TEXT NOT NULL REFERENCES briefings(id) ON DELETE CASCADE,
+        belief_id TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'assumption',
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        UNIQUE(brief_id, belief_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_brief_beliefs_brief ON brief_beliefs(brief_id);
+      CREATE INDEX IF NOT EXISTS idx_brief_beliefs_belief ON brief_beliefs(belief_id);
+    `,
+  },
 ];
 
 function parseRawContext(rawContext: string | null): BriefingContextInput | null {
@@ -330,6 +345,49 @@ export function clearAllBriefings(storage: PluginContext["storage"]): number {
   const count = storage.query<{ cnt: number }>("SELECT COUNT(*) as cnt FROM briefings")[0]?.cnt ?? 0;
   storage.run("DELETE FROM briefings");
   return count;
+}
+
+// ---------------------------------------------------------------------------
+// brief_beliefs — junction table linking briefs to the beliefs that shaped them
+// ---------------------------------------------------------------------------
+
+export interface BriefBeliefLinkInput {
+  beliefId: string;
+  role?: string;
+}
+
+export interface BriefBeliefLink {
+  beliefId: string;
+  role: string;
+  createdAt: string;
+}
+
+export function linkBriefBeliefs(
+  storage: PluginContext["storage"],
+  briefId: string,
+  beliefs: BriefBeliefLinkInput[],
+): void {
+  for (const belief of beliefs) {
+    storage.run(
+      "INSERT OR IGNORE INTO brief_beliefs (id, brief_id, belief_id, role) VALUES (?, ?, ?, ?)",
+      [crypto.randomUUID(), briefId, belief.beliefId, belief.role ?? "assumption"],
+    );
+  }
+}
+
+export function getBriefBeliefs(
+  storage: PluginContext["storage"],
+  briefId: string,
+): BriefBeliefLink[] {
+  const rows = storage.query<{ belief_id: string; role: string; created_at: string }>(
+    "SELECT belief_id, role, created_at FROM brief_beliefs WHERE brief_id = ? ORDER BY created_at",
+    [briefId],
+  );
+  return rows.map((row) => ({
+    beliefId: row.belief_id,
+    role: row.role,
+    createdAt: row.created_at,
+  }));
 }
 
 export function getResearchBriefings(storage: PluginContext["storage"]): Briefing[] {
