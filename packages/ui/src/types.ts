@@ -376,6 +376,7 @@ export interface BriefingRawContextBelief {
   accessCount: number;
   isNew: boolean;
   subject?: string;
+  origin?: string;
 }
 
 export interface BriefingRawContext {

@@ -30,6 +30,7 @@ export interface BriefingBeliefInput {
   accessCount: number;
   isNew: boolean;
   subject?: string;
+  origin?: string;
 }
 
 export type BriefingTaskSourceType = "briefing" | "program";
@@ -1343,6 +1344,7 @@ export async function generateBriefing(
       accessCount: belief.access_count,
       isNew: Date.now() - new Date(belief.updated_at).getTime() < 24 * 60 * 60 * 1000,
       subject: belief.subject,
+      origin: belief.origin ?? undefined,
     })),
     recentActivity: recentEpisodes.map((episode) => episode.content.slice(0, 100)),
     stats: {
