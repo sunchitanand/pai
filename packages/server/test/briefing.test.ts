@@ -691,6 +691,79 @@ describe("generateBriefing", () => {
     );
   });
 
+  it("links beliefs to the briefing after successful generation", async () => {
+    // Need the memory tables for FK constraints on brief_beliefs
+    storage.migrate("memory", memoryMigrations);
+
+    // Insert beliefs into DB so FK constraint is satisfied
+    storage.run(
+      "INSERT INTO beliefs (id, statement, confidence, status, subject, origin) VALUES (?, ?, ?, ?, ?, ?)",
+      ["belief-gen-1", "Prefers concise updates", 0.9, "active", "owner", "user-said"],
+    );
+    storage.run(
+      "INSERT INTO beliefs (id, statement, confidence, status, subject, origin) VALUES (?, ?, ?, ?, ?, ?)",
+      ["belief-gen-2", "Tracks H4 visa slots", 0.85, "active", "owner", "inferred"],
+    );
+
+    // mockListBeliefs returns these beliefs so selectBriefingBeliefs picks them
+    mockListBeliefs.mockReturnValue([
+      {
+        id: "belief-gen-1",
+        statement: "Prefers concise updates",
+        type: "preference",
+        confidence: 0.9,
+        status: "active",
+        created_at: "2026-03-12T00:00:00.000Z",
+        updated_at: "2026-03-12T00:00:00.000Z",
+        superseded_by: null,
+        supersedes: null,
+        importance: 7,
+        last_accessed: null,
+        access_count: 0,
+        stability: 1,
+        subject: "owner",
+        origin: "user-said",
+        freshness_at: null,
+        correction_state: "active",
+        sensitive: false,
+      },
+      {
+        id: "belief-gen-2",
+        statement: "Tracks H4 visa slots",
+        type: "factual",
+        confidence: 0.85,
+        status: "active",
+        created_at: "2026-03-12T00:00:00.000Z",
+        updated_at: "2026-03-12T00:00:00.000Z",
+        superseded_by: null,
+        supersedes: null,
+        importance: 6,
+        last_accessed: null,
+        access_count: 0,
+        stability: 1,
+        subject: "owner",
+        origin: "inferred",
+        freshness_at: null,
+        correction_state: "active",
+        sensitive: false,
+      },
+    ]);
+
+    const ctx = makeCtx(false); // deterministic fallback — no LLM needed
+    const result = await generateBriefing(ctx);
+
+    expect(result).not.toBeNull();
+    expect(result!.status).toBe("ready");
+
+    const links = getBriefBeliefs(storage, result!.id);
+    expect(links.length).toBeGreaterThan(0);
+    expect(links.every((l) => l.role === "assumption")).toBe(true);
+    // All linked belief IDs should be from the beliefs we provided
+    for (const link of links) {
+      expect(["belief-gen-1", "belief-gen-2"]).toContain(link.beliefId);
+    }
+  });
+
   it("calls generateText with the LLM model from context", async () => {
     const { generateText } = await import("ai");
     (generateText as ReturnType<typeof vi.fn>).mockResolvedValue({

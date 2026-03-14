@@ -1484,6 +1484,9 @@ Respond ONLY with a valid JSON object matching this exact shape (no markdown, no
       "UPDATE briefings SET sections = ?, status = 'ready' WHERE id = ?",
       [JSON.stringify(parsed), id],
     );
+    if (topBeliefs.length > 0) {
+      linkBriefBeliefs(ctx.storage, id, topBeliefs.map((b) => ({ beliefId: b.id, role: "assumption" })));
+    }
     pruneOldBriefings(ctx.storage);
     return {
       id,
