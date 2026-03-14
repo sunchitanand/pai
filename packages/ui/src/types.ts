@@ -537,3 +537,44 @@ export interface ArtifactMeta {
   size: number;
   createdAt: string;
 }
+
+export interface BriefProvenanceSource {
+  kind: string;
+  label: string;
+  sourceId?: string;
+  date?: string;
+}
+
+export interface BriefProvenanceBelief {
+  id: string;
+  statement: string;
+  type: string;
+  origin: string;
+  confidence: number;
+  correctionState: string;
+  supersedes?: {
+    id: string;
+    statement: string;
+    correctedFromBriefId?: string;
+  };
+  role: string;
+}
+
+export interface BriefProvenance {
+  briefId: string;
+  generatedAt: string;
+  sources: BriefProvenanceSource[];
+  beliefs: BriefProvenanceBelief[];
+  evidence: Array<{
+    title: string;
+    detail: string;
+    sourceLabel: string;
+    sourceUrl?: string;
+    freshness?: string;
+  }>;
+  recommendation: {
+    summary: string;
+    confidence: string;
+    rationale: string;
+  };
+}

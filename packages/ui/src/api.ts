@@ -27,6 +27,7 @@ import type {
   JobDiagnostics,
   RecentError,
   TelemetrySpan,
+  BriefProvenance,
 } from "./types";
 
 const BASE = "/api";
@@ -234,6 +235,10 @@ export function correctBelief(id: string, input: { statement: string; note?: str
     method: "POST",
     body: JSON.stringify(input),
   });
+}
+
+export function getBriefProvenance(briefId: string): Promise<BriefProvenance> {
+  return request(`/inbox/${briefId}/provenance`);
 }
 
 export function recordProductEventApi(input: {
