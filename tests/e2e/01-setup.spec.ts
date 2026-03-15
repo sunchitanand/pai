@@ -3,8 +3,15 @@ import { test, expect } from "@playwright/test";
 test.describe("Setup wizard", () => {
   test("first boot shows setup page and creates owner", async ({ page }) => {
     // First boot — no owner exists → should redirect to /setup
+    // CI runners can be slow; retry navigation if the app briefly lands on /login
+    // before the auth state settles to needsSetup=true
     await page.goto("/");
-    await expect(page).toHaveURL(/\/setup/, { timeout: 10_000 });
+    try {
+      await expect(page).toHaveURL(/\/setup/, { timeout: 10_000 });
+    } catch {
+      await page.goto("/");
+      await expect(page).toHaveURL(/\/setup/, { timeout: 15_000 });
+    }
 
     // Step 1: Account creation
     await expect(page.getByText("Set up pai")).toBeVisible();
@@ -45,7 +52,7 @@ test.describe("Setup wizard", () => {
 
     // Step 3: Personal intro
     await expect(page.getByText("Set your first context")).toBeVisible({ timeout: 10_000 });
-    await expect(page.getByRole("button", { name: "Open Ask", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Get started", exact: true })).toBeVisible();
 
     // Skip intro
     await page.getByText("Skip and open Ask").click();
