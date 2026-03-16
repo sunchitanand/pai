@@ -89,13 +89,12 @@ export default function HomeBriefs() {
           <h2 className="mb-6 text-xs font-semibold uppercase tracking-[0.15em] text-muted-foreground/60">Recent Briefs</h2>
 
           {isLoading && (
-            <div className="space-y-8">
+            <div className="space-y-6">
               {[1, 2, 3].map((i) => (
                 <div key={i} className="space-y-3 rounded-lg border border-border/30 p-4">
-                  <Skeleton className="h-3 w-20" />
+                  <Skeleton className="h-4 w-16" />
                   <Skeleton className="h-5 w-3/4" />
                   <Skeleton className="h-12 w-full" />
-                  <Skeleton className="h-3 w-1/2" />
                 </div>
               ))}
             </div>
