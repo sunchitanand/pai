@@ -50,19 +50,6 @@ export default function Layout() {
 
   return (
     <div className="flex h-dvh w-screen flex-col overflow-hidden bg-background">
-      {/* New UI toggle bar */}
-      <div className="flex h-8 shrink-0 items-center justify-between border-b border-border/30 bg-primary/5 px-4">
-        <span className="text-[11px] text-muted-foreground">
-          {newUI ? "✨ New UI active" : "Legacy UI"}
-        </span>
-        <button
-          onClick={() => { toggleNewUI(); window.location.reload(); }}
-          className="rounded-full border border-border/50 bg-background px-3 py-0.5 text-[10px] font-medium text-foreground transition-colors hover:bg-accent"
-        >
-          {newUI ? "Switch to Legacy" : "Try New UI"}
-        </button>
-      </div>
-
       <div className="flex flex-1 overflow-hidden">
       {/* Desktop sidebar — hidden on mobile, replaced by bottom tab bar */}
       <nav className="hidden md:flex h-full w-14 flex-col items-center border-r border-border/40 bg-background py-4">
@@ -105,6 +92,14 @@ export default function Layout() {
             </Tooltip>
           ))}
         </div>
+
+        {/* UI toggle pill */}
+        <button
+          onClick={() => { toggleNewUI(); window.location.reload(); }}
+          className="mt-2 rounded-full border border-border/50 bg-background px-2 py-1 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        >
+          {newUI ? "✨ New" : "Classic"}
+        </button>
       </nav>
 
       {/* Main content — bottom padding on mobile to clear tab bar */}
