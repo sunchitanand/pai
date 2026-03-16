@@ -16,7 +16,7 @@ type Family = "general" | "work" | "travel" | "buying";
 
 function statusBadge(status: string) {
   const s = status.toLowerCase();
-  if (s === "active" || s === "running") return <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 text-[10px]">● Active</Badge>;
+  if (s === "active" || s === "running") return <Badge className={cn("bg-emerald-500/15 text-emerald-400 border-emerald-500/30 text-[10px]", s === "running" && "animate-pulse")}>● Active</Badge>;
   if (s === "paused") return <Badge className="bg-amber-500/15 text-amber-400 border-amber-500/30 text-[10px]">● Paused</Badge>;
   if (s === "draft") return <Badge className="bg-muted text-muted-foreground text-[10px]">● Draft</Badge>;
   return <Badge variant="outline" className="text-[10px]">{status}</Badge>;
@@ -64,6 +64,7 @@ export default function ProgramsNew() {
   const [tab, setTab] = useState<Tab>("active");
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
 
   // Create form state
   const [title, setTitle] = useState("");
@@ -96,9 +97,14 @@ export default function ProgramsNew() {
   };
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
-    try { await deleteMut.mutateAsync(id); toast.success("Program deleted"); }
+    setDeleteTarget({ id, name });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    try { await deleteMut.mutateAsync(deleteTarget.id); toast.success("Program deleted"); }
     catch { toast.error("Failed to delete"); }
+    finally { setDeleteTarget(null); }
   };
 
   return (
@@ -191,7 +197,7 @@ export default function ProgramsNew() {
               </div>
               {filtered.map((program, i) => (
                 <div key={program.id} onClick={() => navigate(`/programs?id=${program.id}`)}
-                  className="grid cursor-pointer animate-in fade-in-0 duration-300 grid-cols-[2fr_1fr_1fr_1.5fr_auto] items-center gap-3 border-b border-border/10 px-4 py-3 transition-colors hover:bg-card/30 last:border-b-0"
+                  className="grid cursor-pointer animate-in fade-in-0 duration-300 grid-cols-[2fr_1fr_1fr_1.5fr_auto] items-center gap-3 border-b border-border/10 px-4 py-3 transition-all hover:translate-x-0.5 hover:bg-card/30 last:border-b-0"
                   style={{ animationDelay: `${i * 50}ms` }}>
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-foreground">{program.title}</p>
@@ -298,6 +304,22 @@ export default function ProgramsNew() {
             <Button variant="ghost" size="sm" onClick={() => setShowCreate(false)}>Cancel</Button>
             <Button size="sm" onClick={handleCreate} disabled={!title.trim() || !question.trim() || createMut.isPending}>
               {createMut.isPending ? "Creating..." : "Create Program"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete Program</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">Delete "{deleteTarget?.name}"? This cannot be undone.</p>
+          <DialogFooter>
+            <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+            <Button variant="destructive" size="sm" onClick={confirmDelete} disabled={deleteMut.isPending}>
+              {deleteMut.isPending ? "Deleting..." : "Delete"}
             </Button>
           </DialogFooter>
         </DialogContent>
