@@ -156,12 +156,20 @@ export default function ProgramsNew() {
           {isLoading ? (
             <div className="space-y-2">{[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-16 w-full rounded-lg" />)}</div>
           ) : filtered.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 py-16">
-              <p className="text-xs text-muted-foreground">{programs.length === 0 ? "No programs yet." : "No programs match your filter."}</p>
-              {programs.length === 0 && (
-                <Button size="sm" variant="outline" onClick={() => setShowCreate(true)} className="gap-2 text-xs">
-                  <PlusIcon className="size-3.5" /> Create your first program
-                </Button>
+            <div className="flex flex-col items-center gap-3 py-16 text-center">
+              {programs.length === 0 ? (
+                <>
+                  <p className="text-sm font-semibold text-foreground">Track an ongoing decision</p>
+                  <p className="max-w-xs text-xs text-muted-foreground">Flight prices, product comparisons, job offers — anything you need monitored over time</p>
+                  <Button size="sm" variant="outline" onClick={() => setShowCreate(true)} className="gap-2 text-xs">
+                    <PlusIcon className="size-3.5" /> Create your first program
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs text-muted-foreground">No programs match this filter</p>
+                  <button onClick={() => { setSearch(""); setTab("active"); }} className="text-xs text-primary hover:underline">Clear filter</button>
+                </>
               )}
             </div>
           ) : (

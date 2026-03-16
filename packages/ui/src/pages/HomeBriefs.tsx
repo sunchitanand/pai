@@ -102,7 +102,12 @@ export default function HomeBriefs() {
           )}
 
           {!isLoading && briefings.length === 0 && (
-            <p className="py-16 text-center text-sm text-muted-foreground">No briefs yet. Create a Program to start.</p>
+            <div className="flex flex-col items-center gap-3 py-16 text-center">
+              <p className="text-xs text-muted-foreground">Your first brief will appear after your first Program runs</p>
+              <button onClick={() => navigate("/programs")} className="rounded-md border border-border/50 px-3 py-1 text-xs text-primary hover:bg-accent transition-colors">
+                Create Program
+              </button>
+            </div>
           )}
 
           <div className="flex flex-col gap-6">
